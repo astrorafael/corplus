@@ -1,3 +1,84 @@
+2005-06-22  Astrorafael
+	* principal.c:
+		solucionado bug conexion inicial PACORRO
+
+2005-06-17  Astrorafael
+	* principal.c:
+	* protocolo.lib:
+		añadido campos de hora y firmware al final de mensaje de
+		broadcast/mantenimiento
+
+	* protocolo.lib:
+		fixed field length in Pet_Manten_Msg
+
+2005-05-05  Astrorafael
+	* ccd.lib:
+		quitado switch tonto de binning y patron
+
+2005-02-24  Astrorafael
+	* ccd.lib:
+		cambiados X_AMPLI_OFF por X_AMPLI_ON
+
+2005-01-30  Astrorafael
+	* ccd.lib:
+		corregido bug en encendido/apagado amplificador.
+		Ahora hay una funcion que lo hace.
+
+2005-01-29  Astrorafael
+	* protocolo.lib:
+		cambiados algunos comentarios de mensaje de respuesta de conexion
+
+	* ccd.lib:
+	* protocolo.lib:
+		en el mensaje de fin de foto ya no se envían las temperaturas
+		ni tension del peltier para cumplir estrictamente con el protocolo
+		CORv2.2
+
+2005-01-14  Astrorafael
+	* principal.c:
+		tiempo de inactividad puesto a 4 segundos
+		La espera de 2 segundos entre anuncios de presencia
+		se hace solo si el PC no esta conectado
+
+2005-01-09  Astrorafael
+	* Leeme.txt:
+		un mensaje de diagnóstico más
+
+	* Leeme.txt:
+		añadido parrafo de tiempo de exposición
+
+2004-12-23  Astrorafael
+	* ccd.lib:
+		quitado el timestamp de limpieza del CCD.
+		Cambiadas las referencias de tiempo tExp y tRead1 para hacerlas coincidir
+		con la versión del COR de Cristóbal.
+
+	* principal.c:
+		añadido red_estoy_solo() y acortado el timeout de perdida de conexion a
+		2 segundos
+
+2004-12-22  Astrorafael
+	* diagnosticos.lib:
+		añadido nuevo mensaje de error para tx por udp
+
+2004-12-18  Astrorafael
+	* principal.c:
+		reorganizado otra vez el codigo. Ahora se usa udp_waitopen en
+		red_cambia_ip(). Ademas se distinge si se cambia ip a broadcast o no.
+		Añadida funcion red_estoy_solo()
+
+	* CUSTOM_CONFIG.LIB:
+		aumentado el buffer udp a 5000 bytes para el KAF-3000
+
+	* principal.c:
+		borrado codigo comentado en red_cambia_ip()
+
+2004-12-11  Astrorafael
+	* principal.c:
+		añadida la macro CORPLUS_VERSION
+		añadidos algunos dbgprintf al enviar  y recibir de UDP
+		cambiado udp_sendto por udp_waitsend en envia_rabbit_vivo()
+
 2004-12-08  Astrorafael
 	* principal.c:
 		añadido tcp_tick() a red_cambia_ip() porque no se esperaba

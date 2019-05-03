@@ -1,0 +1,522 @@
+[COMM]
+port=1
+coldload baud=2400
+pilot baud=57600
+bios baud=115200
+stop bits=2
+use TCP=0
+TCP Port=0
+TCP Name=
+Net Address=
+Serial Response Timeout=200
+Ethernet Response Timeout=8000
+Serial Retry Count=10
+Ethernet Retry Count=0
+Serial Poll Interval=3000
+Ethernet Poll Interval=30000
+Verify DSR=1
+Use USB to Serial Converter=0
+Disable Baud Negotiation=1
+USB to Serial Delay=2000
+Pilot Bios Physical Address=0x4000
+Flash erase timeout=10000
+Debug Tag RAM Offset=0x1002
+Max Negotiated Baud=460800
+[Compiler Options]
+Max Errors Shown=10
+Max Warnings Shown=10
+All Serious None=A
+RTC Indices=0
+RTC Pointers=0
+Optimize For Size=1
+Prototypes=1
+Demotion=1
+Pointers=1
+BIOS Memory Mode=0
+Restrict Watch Expressions=1
+Separate Instruction and Data=0
+Generate List Files=1
+Inline Internal IO Functions=1
+Default Compile Mode=1
+[Debug Options]
+Enable Breakpoints=1
+Enable Instruction Level Single Step=1
+Enable Watch Expressions=1
+Max Breakpoints=32
+Max Watch Expressions=8
+[Include RST 28]
+Include RST=1
+[Include BIOS]
+Include BIOS=1
+[Poll Target]
+Poll target while running=0
+[Targetless Compile]
+Board ID=0x0700
+CPU ID=2000
+CPU Revision=3
+Crystal Speed MHz=11.0592
+RAM Size KBytes=512
+Flash Size KBytes=256
+Description=22MHz RCM2100, 512K SRAM, 512K Flash
+[Output File]
+Auto open STDIO=1
+Append=0
+Log STDIO=0
+Output File Name=DC.OUT
+[Dynamic C Files]
+Use Lib File=1
+Use BIOS File=0
+Use Default Source File=0
+LIB File=C:\user\corplus\LIB.DIR
+BIOS File=
+Cold Loader File=bios\coldload.bin
+Pilot BIOS File=bios\pilot.bin
+Default Source File=
+[DEFINES]
+Defines=DEBUG=2;MEDIDAS=0;STD_IO
+[Compression Utility]
+Zimport External Utility=ZCOMPRESS.EXE
+[MRU Files]
+FileCount=1
+[Open Files]
+Number Open=3
+[MRU 1]
+MRU 1 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\COSTATE.LIB
+MRU 1 X=132
+MRU 1 Y=132
+MRU 1 W=826
+MRU 1 H=456
+MRU 1 Top Row=50
+MRU 1 WindowState=2
+MRU 1 Cursor Row=74
+MRU 1 Cursor Col=24
+[MRU 2]
+MRU 2 Path=C:\corplus\PRINCIPAL2.c
+MRU 2 X=22
+MRU 2 Y=22
+MRU 2 W=822
+MRU 2 H=452
+MRU 2 Top Row=353
+MRU 2 WindowState=2
+MRU 2 Cursor Row=377
+MRU 2 Cursor Col=49
+[MRU 3]
+MRU 3 Path=C:\corplus\pruserie.c
+MRU 3 X=88
+MRU 3 Y=88
+MRU 3 W=826
+MRU 3 H=456
+MRU 3 Top Row=0
+MRU 3 WindowState=2
+MRU 3 Cursor Row=0
+MRU 3 Cursor Col=0
+[MRU 4]
+MRU 4 Path=C:\CORPLUS\COR2C.C
+MRU 4 X=66
+MRU 4 Y=66
+MRU 4 W=826
+MRU 4 H=456
+MRU 4 Top Row=2013
+MRU 4 WindowState=2
+MRU 4 Cursor Row=2036
+MRU 4 Cursor Col=3
+[MRU 5]
+MRU 5 Path=C:\CORPLUS\TIPOS.LIB
+MRU 5 X=88
+MRU 5 Y=88
+MRU 5 W=826
+MRU 5 H=456
+MRU 5 Top Row=0
+MRU 5 WindowState=2
+MRU 5 Cursor Row=11
+MRU 5 Cursor Col=36
+[MRU 6]
+MRU 6 Path=C:\CORPLUS\PROTOCOLO.LIB
+MRU 6 X=176
+MRU 6 Y=176
+MRU 6 W=826
+MRU 6 H=456
+MRU 6 Top Row=0
+MRU 6 WindowState=2
+MRU 6 Cursor Row=11
+MRU 6 Cursor Col=36
+[MRU 7]
+MRU 7 Path=C:\CORPLUS\PRINCIPAL.LST
+MRU 7 X=66
+MRU 7 Y=66
+MRU 7 W=826
+MRU 7 H=456
+MRU 7 Top Row=9993
+MRU 7 WindowState=2
+MRU 7 Cursor Row=9990
+MRU 7 Cursor Col=50
+[MRU 8]
+MRU 8 Path=C:\CORPLUS\PRINCIPAL.MAP
+MRU 8 X=44
+MRU 8 Y=44
+MRU 8 W=826
+MRU 8 H=456
+MRU 8 Top Row=0
+MRU 8 WindowState=2
+MRU 8 Cursor Row=0
+MRU 8 Cursor Col=0
+[OpenFile 1]
+OpenFile 1=C:\USER\CORPLUS\PRINCIPAL.C
+OpenFile 1 X=0
+OpenFile 1 Y=0
+OpenFile 1 W=822
+OpenFile 1 H=452
+OpenFile 1 Top Row=325
+OpenFile 1 Top Col=0
+OpenFile 1 WindowState=2
+OpenFile 1 Cursor Row=335
+OpenFile 1 Cursor Col=3
+[OpenFile 2]
+OpenFile 2=C:\USER\CORPLUS\CCD.LIB
+OpenFile 2 X=66
+OpenFile 2 Y=66
+OpenFile 2 W=826
+OpenFile 2 H=456
+OpenFile 2 Top Row=922
+OpenFile 2 Top Col=0
+OpenFile 2 WindowState=0
+OpenFile 2 Cursor Row=945
+OpenFile 2 Cursor Col=68
+[OpenFile 3]
+OpenFile 3=C:\USER\CORPLUS\PERIFERICOS.LIB
+OpenFile 3 X=88
+OpenFile 3 Y=88
+OpenFile 3 W=826
+OpenFile 3 H=456
+OpenFile 3 Top Row=0
+OpenFile 3 Top Col=0
+OpenFile 3 WindowState=0
+OpenFile 3 Cursor Row=80
+OpenFile 3 Cursor Col=21
+[MRU 9]
+MRU 9 Path=C:\CORPLUS\PRINCIPAL.C
+MRU 9 X=22
+MRU 9 Y=22
+MRU 9 W=822
+MRU 9 H=452
+MRU 9 Top Row=0
+MRU 9 WindowState=2
+MRU 9 Cursor Row=11
+MRU 9 Cursor Col=36
+[MRU10]
+MRU10 Path=C:\CORPLUS\PRINCIPAL.LST
+MRU10 X=66
+MRU10 Y=66
+MRU10 W=826
+MRU10 H=456
+MRU10 Top Row=9993
+MRU10 WindowState=2
+MRU10 Cursor Row=9990
+MRU10 Cursor Col=50
+[MRU11]
+MRU11 Path=C:\CORPLUS\PRINCIPAL.MAP
+MRU11 X=44
+MRU11 Y=44
+MRU11 W=826
+MRU11 H=456
+MRU11 Top Row=0
+MRU11 WindowState=2
+MRU11 Cursor Row=0
+MRU11 Cursor Col=0
+[OpenFile 4]
+OpenFile 4=C:\CORPLUS\PRINCIPAL.C
+OpenFile 4 X=44
+OpenFile 4 Y=44
+OpenFile 4 W=826
+OpenFile 4 H=456
+OpenFile 4 Top Row=0
+OpenFile 4 Top Col=0
+OpenFile 4 WindowState=0
+OpenFile 4 Cursor Row=10
+OpenFile 4 Cursor Col=68
+[MRU12]
+MRU12 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\ZIMPORT\ZIMPORT.LIB
+MRU12 X=88
+MRU12 Y=88
+MRU12 W=826
+MRU12 H=456
+MRU12 Top Row=0
+MRU12 WindowState=2
+MRU12 Cursor Row=0
+MRU12 Cursor Col=0
+[MRU13]
+MRU13 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\ZIMPORT\ZIMPORT.LIB
+MRU13 X=88
+MRU13 Y=88
+MRU13 W=826
+MRU13 H=456
+MRU13 Top Row=0
+MRU13 WindowState=2
+MRU13 Cursor Row=0
+MRU13 Cursor Col=0
+[MRU14]
+MRU14 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\ZIMPORT\ZIMPORT.LIB
+MRU14 X=88
+MRU14 Y=88
+MRU14 W=826
+MRU14 H=456
+MRU14 Top Row=0
+MRU14 WindowState=2
+MRU14 Cursor Row=0
+MRU14 Cursor Col=0
+[OpenFile 5]
+OpenFile 5=C:\CORPLUS\COMPILAR.TXT
+OpenFile 5 X=22
+OpenFile 5 Y=22
+OpenFile 5 W=826
+OpenFile 5 H=456
+OpenFile 5 Top Row=0
+OpenFile 5 Top Col=0
+OpenFile 5 WindowState=0
+OpenFile 5 Cursor Row=0
+OpenFile 5 Cursor Col=0
+[OpenFile 6]
+OpenFile 6=C:\CORPLUS\DIAGNOSTICOS.LIB
+OpenFile 6 X=66
+OpenFile 6 Y=66
+OpenFile 6 W=826
+OpenFile 6 H=456
+OpenFile 6 Top Row=78
+OpenFile 6 Top Col=0
+OpenFile 6 WindowState=0
+OpenFile 6 Cursor Row=94
+OpenFile 6 Cursor Col=85
+[OpenFile 7]
+OpenFile 7=C:\CORPLUS\PERIFERICOS.LIB
+OpenFile 7 X=44
+OpenFile 7 Y=44
+OpenFile 7 W=826
+OpenFile 7 H=456
+OpenFile 7 Top Row=290
+OpenFile 7 Top Col=0
+OpenFile 7 WindowState=0
+OpenFile 7 Cursor Row=302
+OpenFile 7 Cursor Col=33
+
+[OpenFile 8]
+OpenFile 8=C:\CORPLUS\COR2C_LP2.C
+OpenFile 8 X=22
+OpenFile 8 Y=22
+OpenFile 8 W=826
+OpenFile 8 H=456
+OpenFile 8 Top Row=1833
+OpenFile 8 Top Col=0
+OpenFile 8 WindowState=0
+OpenFile 8 Cursor Row=1856
+OpenFile 8 Cursor Col=3
+
+[MRU15]
+MRU15 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\ZIMPORT\ZIMPORT.LIB
+MRU15 X=88
+MRU15 Y=88
+MRU15 W=826
+MRU15 H=456
+MRU15 Top Row=0
+MRU15 WindowState=2
+MRU15 Cursor Row=0
+MRU15 Cursor Col=0
+
+[MRU16]
+MRU16 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\ZIMPORT\ZIMPORT.LIB
+MRU16 X=88
+MRU16 Y=88
+MRU16 W=826
+MRU16 H=456
+MRU16 Top Row=0
+MRU16 WindowState=2
+MRU16 Cursor Row=0
+MRU16 Cursor Col=0
+
+[MRU17]
+MRU17 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\TCPIP\NET.LIB
+MRU17 X=154
+MRU17 Y=154
+MRU17 W=646
+MRU17 H=360
+MRU17 Top Row=1386
+MRU17 WindowState=2
+MRU17 Cursor Row=1403
+MRU17 Cursor Col=24
+
+[MRU18]
+MRU18 Path=C:\CORPLUS\COR2C.LST
+MRU18 X=132
+MRU18 Y=132
+MRU18 W=646
+MRU18 H=360
+MRU18 Top Row=2600
+MRU18 WindowState=2
+MRU18 Cursor Row=2600
+MRU18 Cursor Col=20
+
+[MRU19]
+MRU19 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\COFUNC.LIB
+MRU19 X=66
+MRU19 Y=66
+MRU19 W=826
+MRU19 H=456
+MRU19 Top Row=0
+MRU19 WindowState=2
+MRU19 Cursor Row=0
+MRU19 Cursor Col=0
+
+[OpenFile 9]
+OpenFile 9=C:\CORPLUS\CUSTOM_CONFIG.LIB
+OpenFile 9 X=110
+OpenFile 9 Y=110
+OpenFile 9 W=826
+OpenFile 9 H=456
+OpenFile 9 Top Row=0
+OpenFile 9 Top Col=0
+OpenFile 9 WindowState=0
+OpenFile 9 Cursor Row=3
+OpenFile 9 Cursor Col=10
+
+[MRU20]
+MRU20 Path=C:\corplus\xilprog.c
+MRU20 X=132
+MRU20 Y=132
+MRU20 W=826
+MRU20 H=456
+MRU20 Top Row=0
+MRU20 WindowState=2
+MRU20 Cursor Row=18
+MRU20 Cursor Col=3
+
+[MRU21]
+MRU21 Path=C:\CORPLUS\CUSTOM_CONFIG.LIB
+MRU21 X=66
+MRU21 Y=66
+MRU21 W=822
+MRU21 H=452
+MRU21 Top Row=15
+MRU21 WindowState=2
+MRU21 Cursor Row=41
+MRU21 Cursor Col=46
+
+[MRU22]
+MRU22 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\SAMPLES\ZIMPORT\ZIMPORT.C
+MRU22 X=66
+MRU22 Y=66
+MRU22 W=826
+MRU22 H=456
+MRU22 Top Row=63
+MRU22 WindowState=2
+MRU22 Cursor Row=0
+MRU22 Cursor Col=0
+
+[MRU23]
+MRU23 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\ZIMPORT\ZIMPORT.LIB
+MRU23 X=88
+MRU23 Y=88
+MRU23 W=826
+MRU23 H=456
+MRU23 Top Row=0
+MRU23 WindowState=2
+MRU23 Cursor Row=0
+MRU23 Cursor Col=0
+
+[MRU24]
+MRU24 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\TCPIP\NET.LIB
+MRU24 X=154
+MRU24 Y=154
+MRU24 W=646
+MRU24 H=360
+MRU24 Top Row=1386
+MRU24 WindowState=2
+MRU24 Cursor Row=1403
+MRU24 Cursor Col=24
+
+[MRU25]
+MRU25 Path=C:\CORPLUS\COR2C.LST
+MRU25 X=132
+MRU25 Y=132
+MRU25 W=646
+MRU25 H=360
+MRU25 Top Row=2600
+MRU25 WindowState=2
+MRU25 Cursor Row=2600
+MRU25 Cursor Col=20
+
+[MRU26]
+MRU26 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\COFUNC.LIB
+MRU26 X=66
+MRU26 Y=66
+MRU26 W=826
+MRU26 H=456
+MRU26 Top Row=0
+MRU26 WindowState=2
+MRU26 Cursor Row=0
+MRU26 Cursor Col=0
+
+[OpenFile10]
+OpenFile10=C:\CORPLUS\CUSTOM_CONFIG.LIB
+OpenFile10 X=22
+OpenFile10 Y=22
+OpenFile10 W=822
+OpenFile10 H=452
+OpenFile10 Top Row=0
+OpenFile10 Top Col=0
+OpenFile10 WindowState=0
+OpenFile10 Cursor Row=0
+OpenFile10 Cursor Col=0
+
+[MRU27]
+MRU27 Path=C:\corplus\xilprog.c
+MRU27 X=132
+MRU27 Y=132
+MRU27 W=826
+MRU27 H=456
+MRU27 Top Row=0
+MRU27 WindowState=2
+MRU27 Cursor Row=18
+MRU27 Cursor Col=3
+
+[MRU28]
+MRU28 Path=C:\CORPLUS\CUSTOM_CONFIG.LIB
+MRU28 X=66
+MRU28 Y=66
+MRU28 W=822
+MRU28 H=452
+MRU28 Top Row=15
+MRU28 WindowState=2
+MRU28 Cursor Row=41
+MRU28 Cursor Col=46
+
+[MRU29]
+MRU29 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\SAMPLES\ZIMPORT\ZIMPORT.C
+MRU29 X=66
+MRU29 Y=66
+MRU29 W=826
+MRU29 H=456
+MRU29 Top Row=63
+MRU29 WindowState=2
+MRU29 Cursor Row=0
+MRU29 Cursor Col=0
+
+[MRU30]
+MRU30 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\ZIMPORT\ZIMPORT.LIB
+MRU30 X=88
+MRU30 Y=88
+MRU30 W=826
+MRU30 H=456
+MRU30 Top Row=0
+MRU30 WindowState=2
+MRU30 Cursor Row=0
+MRU30 Cursor Col=0
+[OpenFile11]
+OpenFile11=C:\CORPLUS\POTENCIA.LIB
+OpenFile11 X=0
+OpenFile11 Y=0
+OpenFile11 W=822
+OpenFile11 H=452
+OpenFile11 Top Row=0
+OpenFile11 Top Col=0
+OpenFile11 WindowState=0
+OpenFile11 Cursor Row=0
+OpenFile11 Cursor Col=0
