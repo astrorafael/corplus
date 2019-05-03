@@ -1,0 +1,129 @@
+2004-12-08  Astrorafael
+	* principal.c:
+		añadido tcp_tick() a red_cambia_ip() porque no se esperaba
+		el tiempo suficiente para resolver la dirección hardware.
+		Eso causa que el protocolo COR falle parcialmente al principio y
+		no se envien mensajes de control de conexión.
+
+2004-12-02  Astrorafael
+	* LIB.DIR:
+		Actualizado a Dynamic C 8.61
+
+2004-11-23  Astrorafael
+	* ccd.lib:
+		Corregido bug de printf de un numero long.
+		Corregido bug de compilador al multiplicar 16bit x 16bit = 32 bit.
+		Se quitara la rutina de ensamblador cuando el compilador haga bien
+		su trabajo.
+
+	* ccd.lib:
+		ahora si que esta quitada la rutina ensamblador de
+		multiplicacion de 16x16
+
+	* ccd.lib:
+		corregido bug corrupcion ultimas filas
+		deltaX desaparece
+		quitada rutina propia de 16x16=32bit. No hace falta.
+
+2004-11-14  Astrorafael
+	* ccd.lib:
+		quitado el bug de sumarle a clavo 10 columnas a x1 x2 en pruebas
+
+2004-11-13  Astrorafael
+	* ccd.lib:
+		actualizados comentarios
+
+2004-11-10  Astrorafael
+	* ccd.lib:
+		añadido el campo ccd->sobrantesX, para saltar mejor las columnas negras
+		en los cuadros completos. Perfecto en 1x1, 2x2 y 4x4.
+
+2004-10-21  Astrorafael
+	* ccd.lib:
+		Añadido tratamiento de tomas BIAS
+
+2004-10-20  Astrorafael
+	* protocolo.lib:
+		Nuevo mensaje de fin de foto del COR al PC
+
+	* ccd.lib:
+		Reajuste de abrir/cerrar el obturador para obturadores sin patron de cerrado.
+		Reajuste de los puntos de medición de la exposición.
+		Nuevo mensaje de fin de foto del COR al PC
+
+2004-10-08  Astrorafael
+	* Leeme.txt:
+		expliacoen profundidad el funcionamiento de los modos de obturación
+
+2004-10-07  Astrorafael
+	* ccd.lib:
+		repasados los modos de obturador, ahora se espera siempre.
+		Se ha dividido en dos la funcion para mostrar mas claramente
+		lo que se hace al abrir y al cerrar.
+
+	* LIB.DIR:
+		cambiado el sitio de desarrollo de \corplus a \user\corplus
+
+	* perifericos.lib:
+		Cambiada TIMEOUT_SERIE de 100 a 10 milisegundos
+
+2004-10-03  Astrorafael
+	* roc2ca_5k.bit:
+		initial version
+
+	* ccd.lib:
+		agnadido dbgprintf1 de numFoto
+
+	* ccd.lib:
+		Renombradas las macros de shutter.
+		Corregido bug de shutter inactivo.
+		Quitado código inutil de control de tiempo de exposición
+		Quitado código inítil de saltar filas y columnas finales
+
+2004-09-29  Astrorafael
+	* ccd.lib:
+		Aumentado el numero de nops a 48 en ccd_V1V2 para adaptar la
+		anchura del pulso V a 5 useg, valor nominal para el KAF-1603ME
+
+	* Leeme.txt:
+		typo
+
+	* Leeme.txt:
+		añadidas notas sobre el obturador
+
+2004-09-28  Astrorafael
+	* ccd.lib:
+		modificada función ccd_v1v2(). Ahora es todo ensamblador.
+		Demasiado rápida. Se han intorducido nops
+
+2004-09-27  Astrorafael
+	* principal.c:
+		Añadida keyword CVS con el nombre de la release
+
+2004-09-26  Astrorafael
+	* ccd.lib:
+		Optimizados con djnz los bucles de ensamblador de lectura de
+		pixel y lectura rápida de pixel
+
+2004-09-25  Astrorafael
+	* ccd.lib:
+		Quitados los dos and 0xFF de la rutina de digitalizar pixeles. 
+		No parece que hicieran falta.
+
+2004-09-22  Astrorafael
+	* BSDLicen.txt:
+	* CUSTOM_CONFIG.LIB:
+	* LIB.DIR:
+	* Leeme.txt:
+	* ccd.lib:
+	* compilar.txt:
+	* desarrollo.dcp:
+	* diagnosticos.lib:
+	* perifericos.lib:
+	* principal.c:
+	* protocolo.lib:
+	* rcm2110.dcp:
+	* roc2ca_3k.bit:
+	* tipos.lib:
+		Version inicial
+

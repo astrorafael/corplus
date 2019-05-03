@@ -1,0 +1,124 @@
+/******************************************************************************
+ *
+ * $Name: corplus-1v5 $
+ * $Header: c:\\Repositorio/corplus/diagnosticos.lib,v 1.1.1.1 2004/09/22 22:44:20 Astrorafael Exp $
+ *
+ * CREDITOS
+ *
+ * Version original de Cristobal García y Javier Pérez.
+ * Version renovada de Rafael González Fuentetaja.
+ *
+ * Este fichero se distribuye bajo licencia de software abierto BSD
+ * Ver fichero BSDLicen.txt adjunto.
+ *
+ * DESCRIPCION
+ *
+ * Modulo de diagnosticos. Se emplea para saber por una consola acoplada
+ * al puerto A lo que está haciendo el COR en ese momento.
+ *
+ * No usamos printf en la version definitiva para ahorrar memoria y
+ * tiempo de proceso.
+ * En su lugar definimos unos menmónicos muy simples de 1 solo caracter.
+ *
+ * Para la impresion de cadenas de caracteres sin formato, incluimos una version
+ * muy simple de print.
+ *
+ * Uso de la variable de complacion condicional DEBUG
+ * --------------------------------------------------
+ *
+ * Si DEBUG == 2, se imprime todo a la consola Stdio del Dynamic C
+ * Si DEBUG == 1, no se usa printf y se imprimen solo los diagnosticos de
+ *  una letra y algunos strings importantes
+ * Si DEBUG == 0 o si DEBUG no está definida, no se imprime nada.
+ *
+ ******************************************************************************/
+
+/*** BeginHeader  */
+#ifndef DIAGNOSTICOS_H
+#define DIAGNOSTICOS_H
+#endif
+
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
+
+#if DEBUG == 0
+
+	#warnt "Aviso: Se va autilizar el puerto serie A como un periferico normal"
+
+	#define diag_putchar(c)
+	#define diag_print(s)
+
+   #define dbgputchar(c)
+   #define dbgprintf(x)
+	#define dbgprintf1(x,y)
+	#define dbgprintf2(x,y,z)
+	#define dbgprintf3(x,y,z,t)
+	#define dbgprintf4(x,y,z,t,u)
+
+#elif DEBUG == 1
+
+	#define diag_putchar(c)         serAputc(c)
+   #define diag_print(s)           serAputs(s)
+
+   #define dbgputchar(c)
+   #define dbgprintf(x)
+	#define dbgprintf1(x,y)
+	#define dbgprintf2(x,y,z)
+	#define dbgprintf3(x,y,z,t)
+	#define dbgprintf4(x,y,z,t,u)
+
+#else
+
+   #define diag_putchar(c)         putchar(c)
+	#define diag_print(s)   		  puts(s)
+
+   #define dbgputchar(c)           putchar(c)
+   #define dbgprintf(x)            puts(x)
+	#define dbgprintf1(x,y)	        printf((x),(y))
+	#define dbgprintf2(x,y,z)       printf((x),(y),(z))
+	#define dbgprintf3(x,y,z,t)     printf((x),(y),(z),(t))
+	#define dbgprintf4(x,y,z,t,u)   printf((x),(y),(z),(t),(u))
+
+#endif
+
+
+/* menmonicos de identificacion de diagnosticos */
+
+#define DIAG_ESPERA   '*' /* COR esta esperando conexion en broadcast */
+#define DIAG_CONEXION '@' /* COR recibe una peticion de conexion */
+#define DIAG_MANTEN   'M' /* COR recibe una peticion mantenimiento de conexion */
+#define DIAG_SER_A    'A' /* COR recibe un mensaje para el puerto serie A */
+#define DIAG_RESP_A   'a' /* COR recibe un mensaje para el PC desde el puerto serie A */
+#define DIAG_SER_B    'B' /* COR recibe un mensaje para el puerto serie B */
+#define DIAG_RESP_B   'b' /* COR recibe un mensaje para el PC desde el puerto serie B */
+#define DIAG_SER_C    'C' /* COR recibe un mensaje para el puerto serie C */
+#define DIAG_RESP_C   'c' /* COR recibe un mensaje para el PC desde el puerto serie C */
+#define DIAG_SER_D    'D' /* COR recibe un mensaje para el puerto serie D */
+#define DIAG_RESP_D   'd' /* COR recibe un mensaje para el PC desde el puerto serie D */
+#define DIAG_POWER    'P' /* COR recibe un mensaje para control de potencia */
+#define DIAG_FOTO_PPAL    'F' /* COR recibe una peticion de foto camara CCD PPAL */
+#define DIAG_CANCEL_PPAL  'X' /* COR recibe una peticion de cancelacion foto CCD PPAL */
+#define DIAG_FOTO_GUIA    'G' /* COR recibe una peticion de foto camara CCD GUIA */
+#define DIAG_CANCEL_GUIA  'Y' /* COR recibe una peticion de cancelacion foto CCD GUIA */
+#define DIAG_TEST     'T' /* COR recibe un mensaje de test */
+#define DIAG_RESET    'R' /* COR recibe un mensaje de reset */
+#define DIAG_DESCONO  '?' /* COR recibe un mensaje desconocido */
+#define DIAG_LIMPIA   'L' /* COR esta limpiando el CCD */
+#define DIAG_LECT     '-' /* COR comienza a leer una imagen*/
+#define DIAG_FINLECT  '+' /* COR termina de leer una imagen*/
+
+#define DIAG_ERROR_OPEN '1'	/* error abriendo un socket UDP */
+#define DIAG_ERROR_UDP  '2'	/* error recibiendo de un socket UDP */
+
+/*** EndHeader  */
+
+/******************************************************************************
+ *
+ * $Log: diagnosticos.lib,v $
+ * Revision 1.1.1.1  2004/09/22 22:44:20  Astrorafael
+ * Version inicial
+ *
+ *
+ ******************************************************************************/

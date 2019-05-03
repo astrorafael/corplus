@@ -1,0 +1,295 @@
+/******************************************************************************
+ *
+ * $Name: corplus-1v5 $
+ * $Header: c:\\Repositorio/corplus/protocolo.lib,v 1.2 2004/10/20 01:08:34 Astrorafael Exp $
+ *
+ * CREDITOS
+ *
+ * Version original de Cristobal García y Javier Pérez.
+ * Version renovada de Rafael González.
+ *
+ * Este fichero se distribuye bajo licencia de software abierto BSD
+ * Ver fichero BSDLicen.txt adjunto.
+ *
+ * DESCRIPCION
+ *
+ * Este fichero contiene la definicion de los mensajes del protocolo COR
+ * Usando estructuras en lugar de offsets de arrays conseguimos que el código
+ * sea más portable. Si hay cambios en el protocolo, no hay que revisar en otros
+ * ficheros los offsets correspondientes, sólo aquí.
+ *
+ ******************************************************************************/
+
+
+/*** BeginHeader */
+
+#ifndef PROTOCOLO_COR_H
+#define PROTOCOLO_COR_H
+
+#define PROTOCOLO_COR_VERSION 21	/* version 2.1 */
+
+#define TCPCONFIG 100      		/* Carga configuracion TCP/IP numero 100 */
+#use "dcrtcp.lib"
+
+/* Enumeracion de perifericos */
+
+#define PERIF_COR        0 /* para el mensaje de estado y mantenimiento conexion */
+#define PERIF_SER_A      1 /* Puerto Serie A. Terminal Diagnostico */
+#define PERIF_SER_B      2 /* Puerto Serie B. Telescopio LX200 */
+#define PERIF_SER_C      3 /* Puerto Serie C. CFS */
+#define PERIF_SER_D      4 /* Puerto Serie D. Estación Meteorológica */
+#define PERIF_POWER     10 /* Puerto paralelo A. Control de potencia */
+#define PERIF_CCD_PPAL  30 /* mensajes de Cámara CCD 1 (ppal) */
+#define PERIF_CCD_GUIA  32 /* mensajes de Cámara CCD 2 (guia) */
+#define PERIF_PRU       50	/* mensaje para pruebas */
+#define PERIF_RESET     60	/* mensaje para resetear el COR */
+
+/* Enumeracion del origen del mensaje */
+
+#define ORIGEN_PC  0       /* mensaje con origen PC hacia el COR */
+#define ORIGEN_COR 1       /* mensaje con origen COR hacia el PC */
+
+
+/**************************************************************************/
+/*                     MENSAJES ENTRANTES AL COR                          */
+/**************************************************************************/
+
+/*
+ * Las estructuras que se definen a continuacion contienen la parte especifica
+ * de cada tipo de mensaje. Los campos generales de origen de conexion y
+ * periferico apareceran en una estructura que englobara a estas.
+ *
+ * NOTA: ASCIIZ = cadena ASCII terminada con byte cero
+ */
+
+/* --------------------------------------------------------------- */
+/* -- MENSAJE DE ESTABLECIMIENTO DE CONEXION - PARTE ESPECIFICA -- */
+/* --------------------------------------------------------------- */
+
+#define MSG_SOLICITUD   "Solicitando conexion COR"
+
+typedef struct {
+	char ipCOR[16];		/* cadena ASCIIZ, IP nueva a poner al COR */
+	char ipPC[16];		/* cadena ASCIIZ, IP del PC que se conecta */
+	char maskCOR[16];	/* cadena ASCIIZ, mascara para poner al COR */
+	char solicitud[25];	/* cadena ASCIIZ con strlen(MSG_SOLICITUD) */
+} Pet_Conexion_Msg;
+
+
+/* -------------------------------------------------------------- */
+/* -- MENSAJE DE MANTENIMIENTO DE CONEXION - PARTE ESPECIFICA --  */
+/* -------------------------------------------------------------- */
+
+
+#define MSG_CONTINUACION "Continuar conexion COR"
+
+/* Bits de control de alimentaciones */
+
+#define PWR_CCD     1	/* Camaras CCD y CFS */
+#define PWR_TELES   2	/* Telescopio */
+#define PWR_SERVER  4	/* PC Servidor web */
+#define PWR_CALENT  8	/* Calentadors antirocio */
+#define PWR_CUPULA 16	/* Apertura y cierre del observatorio */
+
+typedef struct {
+	char manten[30]; 	/* cadena ASCIIZ, con cadena MSG_CONTINUACION */
+	char controlAlim;	/* bits de control de reles de alimentaciones */
+} Pet_Manten_Msg;
+
+
+
+/* ------------------------------------------------------------------ */
+/* -- MENSAJE DE ACTIVACION DE POTENCIA (RELES) - PARTE ESPECIFICA -- */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+	char reles;	/* 8 bits, uno para cada Relé */
+} Pet_Poten_Msg;
+
+
+/* ---------------------------------------------------------------------- */
+/* -- MENSAJE PARA RETRANSMITIR A LOS PUERTOS SERIE - PARTE ESPECIFICA -- */
+/* ---------------------------------------------------------------------- */
+
+#define MAX_PERIF_LEN  32
+
+typedef struct {
+	char datos[MAX_PERIF_LEN];  /* array de datos para pasar al periferico */
+} Pet_Perif_Msg;
+
+
+/* ------------------------------------------------- */
+/* -- MENSAJE PARA TOMAR FOTOS - PARTE ESPECIFICA -- */
+/* ------------------------------------------------- */
+
+typedef struct {
+   int cols;              /* columnas fisicas del sensor */
+   int filas;             /* filas fisicas del sensor */
+   char binning;          /* normal=1,2,3 o 4. En imagen de test 11, 12, 13, 14 */
+   unsigned int tMsecExp; /* milisegundos de exposicion */
+   unsigned int tSecExp;  /* segundos de exposición */
+   int x1;                /* coordenadas iniciales de la ventana */
+   int y1;
+   int x2;                /* coordenadas finales+1 de la ventana */
+   int y2;
+   char cancelar;         /* flag a 1=cancelar exposición No se puede cancelar lectura */
+   char nLimp;            /* numero de limpiezas del sensor antes de exposicion */
+   char modoObtu;         /* modo del obturador Audine.
+                             0=normal, 1=invertido, 2=inactivo a 0, 3 inactivo a 1 */
+   char retardo;          /* retardo del obturador en centenas de milisegundos */
+   char longSeqLect;      /* longitud de secuencia de lectura */
+   char seqLect[64];      /* secuencia de lectura. Maximo, 64 bytes */
+   char longSeqLimp;      /* longitud de secuencia de limpiado */
+   char seqLimp[64];      /* secuencia de limpiado. Maximo, 64 bytes */
+   char longSeqVert;      /* longitud de secuencia vertical */
+   char seqVert[16];      /* secuencia vertical. Maximo, 64 bytes */
+} Pet_Foto_Msg;
+
+/********************************************/
+/* ESTRUCTURA GENERICA DEL MENSAJE ENTRANTE */
+/********************************************/
+
+typedef struct {
+	char periferico;	/* uno de los definidos en la enumeracion de arriba */
+	char origen;		/* origen del mensaje. */
+} Cabecera;
+
+typedef struct {
+	Cabecera cabecera;
+	union {
+		Pet_Conexion_Msg   petCnx;
+		Pet_Manten_Msg     petMant;
+		Pet_Perif_Msg      petPerif;
+		Pet_Foto_Msg       petFoto;
+		Pet_Poten_Msg	  petPoten;
+	} cuerpo;
+} Mensaje_Entrante;
+
+
+
+/**************************************************************************/
+/*                     MENSAJES SALIENTES DEL COR                         */
+/**************************************************************************/
+
+
+
+/* --------------------------------------------------------------------------- */
+/* MENSAJE DE PRESENCIA SIN CONEXION GENERADO POR EL COR - PARTE ESPECIFICA -- */
+/* --------------------------------------------------------------------------- */
+
+typedef struct {
+	char salidas;   /* estado de las salidas del control de potencia */
+	char grupo[4];  /* 4 grupos de 6 entradas */
+} Pwr_Estado;
+
+
+#define MENS_PRESENCIA "COR presente"
+
+typedef struct {
+	char respuesta[24];	/* para alojar el mensaje MENS_PRESENCIA o MENS_RESP_CONEXION */
+	unsigned char paso;	/* = 5. No se para qué se usa */
+	char relleno1[5];	/* relleno. NOTA: EL PDF de la version 2.1 ESTA MAL !!!!! */
+	Pwr_Estado potencia;	/* estado de entradas y salidas de potencia */
+	int tempCCD;
+	int tempCaja;
+	int voltiosPeltier;
+	char relleno2[9];	/* no se usa */
+	char compila[12];	/* fecha de compilacion en formato "Mnn dd yyyy"  */
+} Presencia_Msg;
+
+
+/* ---------------------------------------------------------- */
+/* -- CONFIRMACION DE CONEXION DEL COR  - PARTE ESPECIFICA -- */
+/* ---------------------------------------------------------- */
+
+#define MENS_RESP_CONEXION "COR conectado"
+
+typedef Presencia_Msg Conf_Conexion_Msg;
+
+
+/* ------------------------------------------------------------ */
+/* -- RESPUESTA DE MANTENIMIENTO DEL COR  - PARTE ESPECIFICA -- */
+/* ------------------------------------------------------------ */
+
+/* Por el momento es identica a la confirmacion de conexion */
+typedef Conf_Conexion_Msg Resp_Manten_Msg;
+
+
+/* -------------------------------------------------------------------------- */
+/* -- MENSAJE PARA RETRANSMITIR DESDE LOS PUERTOS SERIE - PARTE ESPECIFICA -- */
+/* -------------------------------------------------------------------------- */
+
+
+typedef struct {
+	char datos[MAX_PERIF_LEN];  /* array de datos para pasar al PC */
+} Resp_Perif_Msg;
+
+
+/* -------------------------------------------------------------------- */
+/* -- MENSAJE DE RESPUESTA DE ESTADO DE POTENCIA -- PARTE ESPECIFICA -- */
+/* -------------------------------------------------------------------- */
+
+
+typedef Pwr_Estado Resp_Potencia_Msg;
+
+
+/* ------------------------------------------------------ */
+/* -- MENSAJE DE RESPUESTA DE FOTO -- PARTE ESPECIFICA -- */
+/* ------------------------------------------------------ */
+
+#define MAX_FOTO_LEN  (UDP_BUF_SIZE-sizeof(Cabecera)-6)   /* quitando la parte comun tambien */
+
+typedef struct {
+	int numMensaje;	/* numero de mensaje de imagen */
+	int numLineas;	/* numero de lineas contenidas en el mensaje */
+	int numCols;	/* numero de columnas por linea */
+	char datos[MAX_FOTO_LEN];
+} Resp_Foto_Msg;
+
+/* ------------------------------------------------------ */
+/* - MENSAJE FINAL RESPUESTA DE FOTO - PARTE ESPECIFICA - */
+/* ------------------------------------------------------ */
+
+typedef struct {
+	unsigned long tExp;	   /* marca de comienzo de exposición en milisegundos */
+   unsigned long tRead;	   /* marca de final de exposición en milisegundos */
+   unsigned long tFinal;	/* marca de final de lectura en milisegundos */
+   int tempCCD;
+	int tempCaja;
+	int voltiosPeltier;
+} Resp_Fin_Foto_Msg;
+
+/*********************************************/
+/* ESTRUCTURA GENERICA DEL MENSAJE SALIENTE */
+/********************************************/
+
+typedef struct {
+	Cabecera cabecera;
+	union {
+		Presencia_Msg      presencia;
+		Conf_Conexion_Msg  confCnx;
+		Resp_Manten_Msg    respMant;
+		Resp_Perif_Msg     respPerif;
+		Resp_Potencia_Msg  respPoten;
+		Resp_Foto_Msg      respFoto;
+      Resp_Fin_Foto_Msg  respFinFoto;
+	} cuerpo;
+} Mensaje_Saliente;
+
+
+#endif
+
+/*** EndHeader */
+
+
+/******************************************************************************
+ *
+ * $Log: protocolo.lib,v $
+ * Revision 1.2  2004/10/20 01:08:34  Astrorafael
+ * Nuevo mensaje de fin de foto del COR al PC
+ *
+ * Revision 1.1.1.1  2004/09/22 22:44:20  Astrorafael
+ * Version inicial
+ *
+ *
+ ******************************************************************************/

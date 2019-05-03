@@ -1,0 +1,83 @@
+/******************************************************************************
+ *
+ * $Name: corplus-1v5 $
+ * $Header: c:\\Repositorio/corplus/CUSTOM_CONFIG.LIB,v 1.1.1.1 2004/09/22 22:44:20 Astrorafael Exp $
+ *
+ * CREDITOS
+ *
+ * Version original de Cristobal García y Javier Pérez.
+ * Version renovada de Rafael González Fuentetaja.
+ *
+ * Este fichero se distribuye bajo licencia de software abierto BSD
+ * Ver fichero BSDLicen.txt adjunto.
+ *
+ * DESCRIPCION
+ *
+ * Fichero de configuración a medida de la pila de protocolos TCP/IP
+ * para el uso del COR. Se tiene que llamar así por narices.
+ * La mayoria de las macros también se tienen que llamar así por narices.
+ * La configuracion está descrita en el correspondiente manual del TCP/IP.
+ *
+ ******************************************************************************//*
+
+
+/*** BeginHeader */
+#ifndef CUSTOM_CONFIG_H
+#define CUSTOM_CONFIG_H
+
+#if TCPCONFIG != 100
+#error "Esta configuracion a medida no esta soportada"
+#endif
+
+#define DISABLE_TCP	   /* No se usa TCP */
+#define DISABLE_DNS		/* No se usa DNS */
+
+
+#define USE_ETHERNET		1	/* flag de usar interfaz Ethernet */
+#define ETH_MTU      1500	/* Máximo tamaño de transmisión para el medio */
+#define ETH_MAXBUFS     3  /* Máxima cantidad de bufferes de recepción */
+
+
+/*
+ * Definir el múmero de bufferes internos de la librería.
+ * Sólo utilizamos un socket UDP, así que solo se necesita 1 buffer.
+ * Se define también el tamaño del buffer UDP en bytes.
+ *
+ * Es interesante saber que el ACOR no admite de momento tamaños
+ * de buffer UDP mayores que 5500 bytes con lo que chips como el KAF-3200ME
+ * a lo mejor no se soportan bien. Habría que verlo.
+ */
+
+#define MAX_UDP_SOCKET_BUFFERS 1
+#define UDP_BUF_SIZE   4096
+
+/*
+ *  Configuración inicial de la interfaz Ethernet
+ */
+
+#define UDP_LOCAL_PORT	 1236  /* Unico puerto UDP de escucha del COR */
+#define UDP_ANY_PORT     0     /* para escuchar en cualquier puerto de una IP */
+#define BROADCAST_IP    -1L
+#define IP_INICIAL		"15.100.200.155"
+#define MASCARA_INICIAL	"0.0.0.0"         /* No hay mascara inicialmente */
+
+
+
+#define IFCONFIG_ETH0 \
+		IFS_IPADDR,aton(IP_INICIAL), \
+		IFS_NETMASK,aton(MASCARA_INICIAL), \
+		IFS_UP
+
+
+#endif	// CUSTOM_CONFIG_H
+/*** EndHeader */
+
+/******************************************************************************
+ *
+ * $Log: CUSTOM_CONFIG.LIB,v $
+ * Revision 1.1.1.1  2004/09/22 22:44:20  Astrorafael
+ * Version inicial
+ *
+ *
+ ******************************************************************************/
+

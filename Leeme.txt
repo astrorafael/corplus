@@ -1,0 +1,225 @@
+$Name: corplus-1v5 $
+$Header: c:\\Repositorio/corplus/Leeme.txt,v 1.6 2004/11/13 11:31:51 Astrorafael Exp $
+
+DISTRIBUCION
+============
+
+Estos ficheros binarios se distribuyen bajo la licencia de software abierto BSD.
+Ver fichero adjunto BSDLicen.txt
+
+INSTALACION
+===========
+
+La instalación se realiza con la Rabbit Field Utility (RFU).
+Asegúrate de que los puentes 1,2,3 del conector JP2 están puestos
+antes de reprogramar el COR.
+Quita los puentes una vez que la unidad está reprogramada.
+
+
+COLUMNAS NEGRAS
+===============
+
+La presente version arregla el 'problema' de que salgan columnas negras indeseadas
+en una imagen completa. El problema está resuelto en los modos de binning 1x1, 2x2 y 4x4
+En el modo de binning 3x3, la primera columna combinada contiene una columna negra
+original del chip.
+
+Sin embargo, las columnas negras llevan una información muy util, que es el bias de 
+cada imagen. En el KAF-402ME/103ME el número de columnas negras es 14 y se encuentran
+al principio de la imagen. De esas 14, sólo 5 columnas pueden usarse para calcular 
+el bias. Esta información puese utilizarse en métodos avanzados de reducción de imágenes
+cuando se está haciendo fotometría de alta precisión.
+
+En el ACOR habrá una futura opción para sacar una imagen completa incluyendo sus
+columnas negras. 
+
+
+OBTURADOR
+=========
+
+
+Los voltajes se refieren a la salida del pin U2.8 = pin CON5.11
+
+El resumen del modo normal de obturacion es:
+
+Abrir obturador  => pin U2.8 = 5V
+Cerrar obturador => pin U2.8 = 0V
+
+MODOS DE OBTURACION
+===================
+
+El manejo del obturador es un poco "sui generis". 
+Se comprende mejor si se exponen las siguientes situaciones:
+
+1) Secuencia de darks
+
+Las secuencias de dark no deben de abrir el obturador en ningún momento.
+Es deseable que el tiempo de exposición de un dark incluya el retardo del obturador
+ya que las fotos normales también lo incluyen.
+
+2) Secuencia de enfoque
+
+En la secuencia de enfoque conviene no perder el tiempo abriendo y cerrando el
+obturador. Ha de ser todo muy rápido, Se debe tener siempre abierto el obturador. 
+Conviene mandar un retraso 0 milisegundos en el retraso del obturador y hacer 
+un solo barrido de limpieza al CCD.
+
+3) Secuencia normal de fotos
+
+En la secuencia de normal de fotos, se debe respetar la semántica natural de abrir
+y cerrar el obturador y realizar el retardo de obturador.
+
+
+Para tratar estas situaciones, en todo mesaje de petición de foto hay un 
+campo de 8 bits para el modo de obturador. De este campo solo se usan dos bits.
+
+
+El bit #1 puesto indica si se desea forzar un nivel dado al pin U2.8 de la Audine
+independientemente de que toque abrir o cerrar. El bit #0 indica que nivel poner.
+Si el bit #0 esta a 1, entonces pin U2.8 = 5V, de lo contario pin U2.8 = 0V
+
+Si el bit #1 está borrado, entonces se redefine el significado del bit #0
+para ser el bit que indica "obturación invertida".
+
+En el momento que toca abrir el obturador, si el bit#1 está borrado 
+el voltaje del pin U2.8 = 5V en una obturación "normal" (bit #0 a cero)
+
+Análogamente, en el momento de cerrar el obturador, si el bit #1 está borrado
+el voltaje del pin U2.8 = 0V en una obturación normal (bit #0 a cero)
+
+Estos bits #1 y #0 los maneja el ACOR de la siguiente manera.
+
+
+1) Secuencia de darks
+
+El ACOR manda una ristra de 10 10 10 .... 10 en la secuencia
+de fotos.
+
+Con esta secuencia "se fuerza a nivel 0V" el pin U2.8 independientemente de 
+si toca abrir o cerrar.
+
+
+En el caso de un obturador que funcionara al revés (obturación invertida), 
+el ACOR debería mandar una secuencia de 11 11 11 ... 11 
+
+
+2) Secuencia de enfoque
+
+El ACOR manda una ristra de 11 11 11 11 ... 11 en la secuencia de fotos.
+
+Además, el ACOR debería mandar 0 milisegundos en el retraso del obturador.
+
+Con esta secuencia "se fuerza a nivel 5V" el pin U2.8 independientemente de 
+si toca abrir o cerrar.
+
+Como efecto secundario, tras la última foto, el obturador se queda abierto por lo que
+si se desea cerrarlo hay que realizar una foto normal.
+
+Si tuvieramos un obturador que funciona al revés (obturación invertida), 
+el ACOR debería mandar la secuencia 10 10 10 10 ... 10
+
+
+3) Secuencia normal de fotos
+
+El ACOR debe mandar una ristra de 00 00 00 ... 00
+Con ello, al abrir  el pin U2.8 tiene 5V y a cerrar tiene 0V.
+
+En el caso de un obturador que funcionara al revés (obturación invertida), 
+el ACOR deberia mandar una secuencia de 01 01 01 01 ... 01
+
+
+OBTURADORES SIN PATRON
+======================
+
+Se han modificado los momentos en los que se toman las marcas de tiempos. 
+El comienzo de la exposición ocurre justo entre acabar de limpiar la CCD y 
+ordenar el movimiento del obturador.
+El final de la exposición ocurre justo antes de ordenar cerrar el obturador.
+
+En los obturadores estilo CFS que siempre abren y cierran en el mismo sentido,
+las duraciones de exposició así medidas son constantes (teoricamente...) 
+a lo largo de la superficie del CCD y con el valor igual al deseado.
+
+Los obturadores que abren y cierran cambiando de sentido, como el DACO,
+exhibirán un patrón de viñeteo algo más acusado ahora a lo largo de 
+la superficie del CCD.
+
+Esto sólo es importante al hacer flat fields de corta duración.
+Para que el efecto sea despreciable, el tiempo de exposición debería
+ser al menos 200 veces mayor que el retardo de obturador.
+
+TOMAS BIAS
+==========
+
+Al ordenar hacer la foto, si el tiempo de exposición enviado es de
+cero milisegundos, la lectura comienza immediatamente. Nauralmente,
+para que el BIAS no se arruine, el ACOR debe enviar en el mensaje
+de foto: 
+
+- El modo de obturador a 10, como en los darks
+- El retardo de obturador a 0
+          
+
+DIAGNOSTICOS
+============
+
+Esta versión está compilada con diagnósticos que salen por el puerto
+serie A del COR a 115200 8-N-1.
+
+La fecha que sale nada más arrancar es la fecha de compilacion de
+este software.
+
+Las direcciones IP que salen son las asignadas a este dispositivo por
+la aplicación ACOR.
+
+Para ahorrar memoria y tiempo de CPU, los mensajes de CPU suelen consistir
+en un solo carácter.
+
+El código de los diagnósticos es el siguiente:
+
+'*'     COR esta esperando conexion en broadcast
+'@'     COR recibe una peticion de conexion
+'M'     COR recibe una peticion mantenimiento de conexion
+'B'     COR recibe un mensaje para el puerto serie B
+'b'     COR recibe un mensaje para el PC desde el puerto serie B
+'C'     COR recibe un mensaje para el puerto serie C
+'c'     COR recibe un mensaje para el PC desde el puerto serie B
+'D'     COR recibe un mensaje para el puerto serie D
+'d'     COR recibe un mensaje para el PC desde el puerto serie B
+'P'     COR recibe un mensaje para control de potencia
+'F'     COR recibe una peticion de foto camara CCD PPAL
+'X'     COR recibe una peticion de cancelacion foto PPAL
+'G'     COR recibe una peticion de foto camara CCD GUIA
+'Y'     COR recibe una peticion de cancelacion foto CCD GUIA
+'T'     COR recibe un mensaje de test
+'R'     COR recibe un mensaje de reset
+'?'     COR recibe un mensaje desconocido
+'L'     COR esta limpiando el CCD
+'-'     COR comienza a leer una imagen
+'+'     COR termina de leer una imagen
+
+'1'     error abriendo un socket UDP
+'2'     error recibiendo de un socket UDP
+
+Todavia no he visto los errores 1 y 2 ;-)
+
+VELOCIDAD DE TRANSFERENCIA
+==========================
+
+Esta versión es capaz de transferir una imagen de 768x512x2 bytes en 10.5 segundos
+aproximadamente, dando una tasa de transferencia por red de 75 KBytes/seg
+
+Incluso, si la digitalización de cada línea tardara 0 segundos, se tardarían
+5.4 segundos en transmitir los 768x512x2 bytes, dando un límite superior
+inalcanzable de 146KBytes/seg
+
+De estos 5.4 segundos:
+
+- 2.2 son atribuibles al envío de las líneas por el socket UDP.
+- 3.2 son atribuibles al resto de la rutina de lectura.
+
+Parece difícil mejorar estos valores.
+
+La toma de tiempos se ha hecho con el conversor A/D  funcionando a 100Kmuetras/seg.
+(la mitad de su velocidad)
+

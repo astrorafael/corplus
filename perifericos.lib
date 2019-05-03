@@ -1,0 +1,619 @@
+/******************************************************************************
+ *
+ * $Name: corplus-1v5 $
+ * $Header: c:\\Repositorio/corplus/perifericos.lib,v 1.2 2004/10/07 23:19:54 Astrorafael Exp $
+ *
+ * CREDITOS
+ *
+ * Version original de Cristobal García y Javier Pérez.
+ * Version renovada de Rafael González Fuentetaja.
+ *
+ * Este fichero se distribuye bajo licencia de software abierto BSD
+ * Ver fichero BSDLicen.txt adjunto.
+ *
+ * DESCRIPCION
+ *
+ * Este fichero contiene el modulo de tratamiento de los perifericos
+ * conectados a los puertos serie y a puerto paralelo (control de potencia)
+ * del Rabbit
+ *
+ * Puertos Serie
+ * -------------
+ *
+ * El tratamiento que hace es una simple retransmision de datos desde una
+ * interfaz Ethernet a una interfaz serie y viceversa, actuando como un mero
+ * concentrador (hub). Esto permite al COR ser muy generico en cuanto a los
+ * perifericos que se conectan al puerto serie. Se puede conectar cualquier
+ * cosa.
+ *
+ * Control de Potencia
+ * -------------------
+ *
+ * Segun el esquema de Cristóbal, los relés se conectan al puerto paralelo A
+ * del RCM2110.
+ * El puerto B del RCM2110 tiene 2 salidas y 6 entradas. Las 2 salidas pueden
+ * servir para formar 4 grupos de 6 entradas y asi tener acceso a 24 entradas.
+ * El programa, de momento, no hace uso de las 2 salidas y siempre lee las
+ * 6 entradas del primer grupo.
+ *
+ ******************************************************************************/
+
+/*** BeginHeader  */
+
+#ifndef PERIFERICOS_COR_H
+#define PERIFERICOS_COR_H
+
+
+#use "tipos.lib"
+
+/*
+ * definicion de los grupos de entrada de puerto paralelo B
+ */
+
+#define PWR_GRUPO_0 0x0F   /* Sensores 1 - 6   */
+#define PWR_GRUPO_1 0x3F   /* Sensores 7 - 8   */
+#define PWR_GRUPO_2 0xCF   /* Sensores 9 - 15  */
+#define PWR_GRUPO_3 0xFF   /* Sensores 16 - 24 */
+
+
+/*
+ * Configuracion de los tamaños de buferes de Tx/Rx de los 4 puertos serie
+ * Estas macros las usa el Dynamic C y tienen que ser multiplos de 2 menos 1
+ */
+
+#define AINBUFSIZE  31   /* Puerto Serie A */
+#define AOUTBUFSIZE 15
+#define BINBUFSIZE  31   /* Puerto SerieB */
+#define BOUTBUFSIZE 31
+#define CINBUFSIZE  31   /* Puerto Serie C */
+#define COUTBUFSIZE 15
+#define DINBUFSIZE 127   /* Puerto Serie D */
+#define DOUTBUFSIZE 15
+
+/* -------------------------------------------------------------------------- */
+
+#define	STDIO_DEBUG_ADDCR    		/* añade el retorno de carro al fin de línea */
+#define	STDIO_DEBUG_SERIAL    SADR
+#define	STDIO_DEBUG_BAUD      115200
+#define  STDIO_DISABLE_FLOATS  1  	/* quiza esta obsoleta esta macro ? */
+
+
+#define TIMEOUT_SERIE 10	/* milisegundos de espera para leer puerto serie */
+
+/*** EndHeader */
+
+
+/* -------------------------------------------------------------------------- */
+
+/*** BeginHeader  perif_init */
+void perif_init(void);
+/*** EndHeader */
+
+void perif_init(void)
+{
+
+#if DEBUG == 0        	/* uso general */
+	serAopen(9600);
+#elif DEBUG == 1  		/* terminal de diagnostico */
+	serAopen(STDIO_DEBUG_BAUD);
+#endif
+
+	serBopen(9600);
+	serCopen(9600);
+	serDopen(9600);
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*** BeginHeader perif_envia_udp */
+void perif_envia_udp(char periferico, PuntoDeRed* remitente, char* buffer, int nread);
+/*** EndHeader */
+
+
+/*
+ * FUNCION:
+ *	void perif_envia_udp(char periferico, PuntoDeRed* remitente, char* buffer, int nread);
+ *
+ * PARAMETROS:
+ *	periferico - código de periférico, seún el protocolo COR
+ *	remitente - pintero al remitente de la peticion para envio de la respuesta
+ *	buffer - zona de memoria a copiar en el mensaje
+ *	nread - longitud del mensaje a copiar
+ *
+ * DESCRIPCION:
+ *	Funcion interna que realiza el envío UDP desde los bufferes privados
+ *	de los 4 manejadores de recepción de datos de puerto serie.
+ *
+ */
+
+void perif_envia_udp(char periferico, PuntoDeRed* remitente, char* buffer, int nread)
+{
+	extern udp_Socket sock;
+	extern BufferGlobal bigbuf;
+
+	/* rellena cabecera del mensaje */
+	bigbuf.mensaje.saliente.cabecera.origen     = ORIGEN_COR;
+	bigbuf.mensaje.saliente.cabecera.periferico = periferico;
+
+	/* Copia cuerpo del mensaje */
+	memcpy(&bigbuf.mensaje.saliente.cuerpo.respPerif.datos, buffer, nread);
+
+   	/* envia por el socket udp hacia el remitente de la peticion */
+
+   	udp_sendto(&sock,
+		(char*) &bigbuf.mensaje.saliente,
+		nread+sizeof bigbuf.mensaje.saliente.cabecera,
+		remitente->ip,
+		remitente->puerto);
+}
+
+
+/*** BeginHeader perif_escucha_puerto_A */
+cofunc void perif_escucha_puerto_A(void);
+/*** EndHeader */
+
+
+
+
+
+/*
+ * FUNCION:
+ *	void perif_escucha_puerto_A(void);
+ *
+ * DESCRIPCION:
+ *	Si se ha conectado el PC, escucha por el puerto serie.
+ *	Cede el control a otras tareas, si al pasar el plazo de recepción
+ * 	no se ha recibido nada.
+ *
+ * NOTA:
+ *	Esta funcion se usaria cuando se utilice el puerto A con otra
+ *	mision distinta a la de diagnósticos (p.ej. control temperatura)
+ *
+ */
+
+
+cofunc void perif_escucha_puerto_A(void)
+{
+	extern int PC_Conectado;
+	extern PuntoDeRed remitente[];
+
+	auto int nread;
+	static char localbuffer[AINBUFSIZE];
+
+	if(PC_Conectado) {
+		waitfordone nread = cof_serAread(localbuffer, sizeof localbuffer, TIMEOUT_SERIE);
+    		if(nread) {
+         	diag_putchar(DIAG_RESP_A);
+      		perif_envia_udp(PERIF_SER_A, &remitente[REM_PERIF_SER_A], localbuffer, nread);
+    		}
+   	}
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*** BeginHeader perif_escucha_puerto_B */
+cofunc void perif_escucha_puerto_B(void);
+/*** EndHeader */
+
+
+/*
+ * FUNCION:
+ *	void perif_escucha_puerto_B(void);
+ *
+ * DESCRIPCION:
+ *	Si se ha conectado el PC, escucha por el puerto serie.
+ *	Cede el control a otras tareas, si al pasar el plazo de recepción
+ * 	no se ha recibido nada.
+ *
+ */
+
+cofunc void perif_escucha_puerto_B(void)
+{
+	extern int PC_Conectado;
+	extern PuntoDeRed remitente[];
+
+	auto int nread;
+	static char localbuffer[BINBUFSIZE];
+
+	if(PC_Conectado) {
+		waitfordone nread = cof_serBread(localbuffer, sizeof localbuffer, TIMEOUT_SERIE);
+    	if(nread) {
+      	diag_putchar(DIAG_RESP_B);
+			perif_envia_udp(PERIF_SER_B, &remitente[REM_PERIF_SER_B], localbuffer, nread);
+		}
+   }
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader perif_escucha_puerto_C */
+cofunc void perif_escucha_puerto_C(void);
+/*** EndHeader */
+
+
+/*
+ * FUNCION:
+ *	void perif_escucha_puerto_C(void);
+ *
+ * DESCRIPCION:
+ *	Si se ha conectado el PC, escucha por el puerto serie.
+ *	Cede el control a otras tareas, si al pasar el plazo de recepción
+ * 	no se ha recibido nada.
+ *
+ */
+
+
+cofunc void perif_escucha_puerto_C(void)
+{
+	extern int PC_Conectado;
+	extern PuntoDeRed remitente[];
+
+	auto int nread;
+	static char localbuffer[CINBUFSIZE];
+
+	if(PC_Conectado) {
+    	waitfordone nread = cof_serCread(localbuffer, sizeof localbuffer, TIMEOUT_SERIE);
+    	if(nread) {
+      	diag_putchar(DIAG_RESP_C);
+			perif_envia_udp(PERIF_SER_C, &remitente[REM_PERIF_SER_C], localbuffer, nread);
+    	}
+	}
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader perif_escucha_puerto_D */
+cofunc void perif_escucha_puerto_D(void);
+/*** EndHeader */
+
+/*
+ * FUNCION:
+ *	void perif_escucha_puerto_D(void);
+ *
+ * DESCRIPCION:
+ *	Si se ha conectado el PC, escucha por el puerto serie.
+ *	Cede el control a otras tareas, si al pasar el plazo de recepción
+ * 	no se ha recibido nada.
+ *
+ */
+
+
+cofunc void perif_escucha_puerto_D(void)
+{
+	extern int PC_Conectado;
+	extern PuntoDeRed remitente[];
+
+	static char localbuffer[DINBUFSIZE];
+	auto int nread;
+
+	if(PC_Conectado) {
+		waitfordone nread = cof_serDread(localbuffer, sizeof localbuffer, TIMEOUT_SERIE);
+		if(nread) {
+      	diag_putchar(DIAG_RESP_D);
+			perif_envia_udp(PERIF_SER_D, &remitente[REM_PERIF_SER_D], localbuffer, nread);
+   	}
+   }
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader  perif_envia_puerto_A  */
+cofunc void perif_envia_puerto_A(int len);
+/*** EndHeader */
+
+
+
+/*
+ * FUNCION:
+ *	void perif_envia_puerto_A(int len);
+ *
+ * PARAMETROS:
+ *	len - longitud del array de datos a enviar
+ *
+ * DESCRIPCION:
+ * 	Esta funcion envía los datos recibidos en el mensaje UDP
+ *	entrante al puerto serie. Cede el procesador mientras
+ *	el puerto serie está transmitiendo.
+ *
+ * NOTA:
+ *	Esta funcion se usaria cuando se utilice el puerto A con otra
+ *	mision distinta a la de diagnósticos (p.ej. control temperatura)
+ *
+ */
+
+cofunc void perif_envia_puerto_A(int len)
+{
+	extern BufferGlobal bigbuf;
+	static char localbuffer[MAX_PERIF_LEN];
+
+	strncpy(localbuffer, bigbuf.mensaje.entrante.cuerpo.petPerif.datos, len);
+	waitfordone cof_serAwrite(localbuffer, len);
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+
+/*** BeginHeader  perif_envia_puerto_B  */
+cofunc void perif_envia_puerto_B(int len);
+/*** EndHeader */
+
+
+/*
+ * FUNCION:
+ *	void perif_envia_puerto_B(int len);
+ *
+ * PARAMETROS:
+ *	len - longitud del array de datos a enviar
+ *
+ * DESCRIPCION:
+ * 	Esta funcion envía los datos recibidos en el mensaje UDP
+ *	entrante al puerto serie. Cede el procesador mientras
+ *	el puerto serie está transmitiendo.
+ *
+ */
+
+cofunc void perif_envia_puerto_B(int len)
+{
+	extern BufferGlobal bigbuf;
+	static char localbuffer[MAX_PERIF_LEN];
+
+	strncpy(localbuffer, bigbuf.mensaje.entrante.cuerpo.petPerif.datos, len);
+	waitfordone cof_serBwrite(localbuffer, len);
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*** BeginHeader  perif_envia_puerto_C  */
+cofunc void perif_envia_puerto_C(int len);
+/*** EndHeader */
+
+
+/*
+ * FUNCION:
+ *	void perif_envia_puerto_C(int len);
+ *
+ * PARAMETROS:
+ *	len - longitud del array de datos a enviar
+ *
+ * DESCRIPCION:
+ * 	Esta funcion envía los datos recibidos en el mensaje UDP
+ *	entrante al puerto serie. Cede el procesador mientras
+ *	el puerto serie está transmitiendo.
+ *
+ */
+
+cofunc void perif_envia_puerto_C(int len)
+{
+	extern BufferGlobal bigbuf;
+	static char localbuffer[MAX_PERIF_LEN];
+
+	strncpy(localbuffer, bigbuf.mensaje.entrante.cuerpo.petPerif.datos, len);
+	waitfordone cof_serCwrite(localbuffer, len);
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader  perif_envia_puerto_D  */
+cofunc void perif_envia_puerto_D(int len);
+/*** EndHeader */
+
+
+/*
+ * FUNCION:
+ *	void perif_envia_puerto_D(int len);
+ *
+ * PARAMETROS:
+ *	len - longitud del array de datos a enviar
+ *
+ * DESCRIPCION:
+ * 	Esta funcion envía los datos recibidos en el mensaje UDP
+ *	entrante al puerto serie. Cede el procesador mientras
+ *	el puerto serie está transmitiendo.
+ *
+ */
+
+cofunc void perif_envia_puerto_D(int len)
+{
+	extern BufferGlobal bigbuf;
+	static char localbuffer[MAX_PERIF_LEN];
+
+	strncpy(localbuffer, bigbuf.mensaje.entrante.cuerpo.petPerif.datos, len);
+	waitfordone cof_serDwrite(localbuffer, len);
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*** BeginHeader pwr_init */
+void pwr_init(void);
+/*** EndHeader */
+
+/*
+ * FUNCION:
+ *	void pwr_init(void);
+ * DESCRIPCION:
+ *	Inicializacion de este módulo. Se programa el puerto A como todo salidas
+ *	y se ponen a nivel bajo todas las salidas, desactiando todos los relés
+ */
+
+void pwr_init(void)
+{
+	WrPortI(SPCR, &SPCRShadow, 0x84);  /* Pines Puerto Paralelo A todo salidas */
+	WrPortI(PADR, &PADRShadow, 0x00);  /* Y nivel bajo a todas las salidas */
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*** BeginHeader pwr_activa */
+void pwr_activa(void);
+/*** EndHeader */
+
+
+/*
+ * FUNCION:
+ *	void pwr_activa(void);
+ *
+ * DESCRIPCION:
+ *	Activa los relés de salida, escribiendo en el puerto paralelo A.
+ *	El byte de activación está en el mensaje entrante.
+ *
+ */
+
+
+void pwr_activa()
+{
+	 extern BufferGlobal bigbuf;
+
+	/* Escritura en el puerto paralelo A */
+ 	WrPortI(PADR, &PADRShadow, bigbuf.mensaje.entrante.cuerpo.petPoten.reles);
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader pwr_rellena */
+void pwr_rellena(Pwr_Estado* buffer);
+/*** EndHeader */
+
+/*
+ * FUNCION:
+ *	void pwr_rellena(Pwr_Estado* buffer);
+ *
+ * PARAMETROS:
+ *	 buffer - puntero al buffer de usuario a rellenar.
+ *
+ * DESCRIPCION:
+ *	Esta funcion rellena un buffer con el estado de las salidas (1 byte),
+ *	y las entradas (4 bytes). Normalmente este buffer es parte del
+ *	buffer global de envío de mensajes de respuesta UDP.
+ *
+ */
+
+
+
+#if 0		// Esto habra que ponerlo así algun día. Es lo suyo
+
+void pwr_rellena(Pwr_Estado* buffer)
+{
+	buffer->salidas = PADRShadow;
+
+	WrPortI(PBDR,NULL,PWR_GRUPO_0);
+	buffer->grupo[0] = RdPortI(PBDR);
+
+	WrPortI(PBDR,NULL,PWR_GRUPO_1);
+	buffer->grupo[1] = RdPortI(PBDR);
+
+	WrPortI(PBDR,NULL,PWR_GRUPO_2);
+	buffer->grupo[2] = RdPortI(PBDR);
+
+	WrPortI(PBDR,NULL,PWR_GRUPO_3);
+	buffer->grupo[3] = RdPortI(PBDR);
+}
+
+#else		// Mientras tanto, esto es lo que hay ....
+
+void pwr_rellena(Pwr_Estado* buffer)
+{
+	static unsigned char cuenta;
+	#GLOBAL_INIT
+	{
+		cuenta = 0;
+	}
+
+	buffer->salidas = PADRShadow;
+
+	WrPortI(PBDR,NULL,PWR_GRUPO_0);
+	buffer->grupo[0] = cuenta;
+
+	WrPortI(PBDR,NULL,PWR_GRUPO_1);
+	buffer->grupo[1] = cuenta;
+
+	WrPortI(PBDR,NULL,PWR_GRUPO_2);
+	buffer->grupo[2] = cuenta;
+
+	WrPortI(PBDR,NULL,PWR_GRUPO_3);
+	buffer->grupo[3] = cuenta;
+
+	cuenta++;
+}
+#endif
+
+
+
+
+/* -------------------------------------------------------------------------- */
+
+/*** BeginHeader pwr_lee_sensores */
+void pwr_lee_sensores(void);
+/*** EndHeader */
+
+/*
+ * FUNCION:
+ *	void pwr_lee_sensores(void);
+ *
+ * DESCRIPCION:
+ *	Esta funcion envia el mensaje del COR al ACOR con el estado de los
+ *	reles de salida y los sensores (interruptores) de entrada.
+ *
+ */
+
+
+void pwr_lee_sensores(void)
+{
+	extern udp_Socket sock;
+	extern BufferGlobal bigbuf;
+	extern PuntoDeRed remitente[];
+
+	bigbuf.mensaje.saliente.cabecera.origen = ORIGEN_COR;
+	bigbuf.mensaje.saliente.cabecera.periferico = PERIF_POWER;
+	pwr_rellena(&bigbuf.mensaje.saliente.cuerpo.respPoten);
+	udp_sendto(&sock,
+		(char*) &bigbuf.mensaje.saliente,
+		sizeof(Resp_Potencia_Msg)+sizeof bigbuf.mensaje.saliente.cabecera,
+		remitente[REM_POTENCIA].ip,
+		remitente[REM_POTENCIA].puerto);
+}
+
+/*** BeginHeader */
+#endif
+/*** EndHeader */
+
+/******************************************************************************
+ *
+ * $Log: perifericos.lib,v $
+ * Revision 1.2  2004/10/07 23:19:54  Astrorafael
+ * Cambiada TIMEOUT_SERIE de 100 a 10 milisegundos
+ *
+ * Revision 1.1.1.1  2004/09/22 22:44:20  Astrorafael
+ * Version inicial
+ *
+ *
+ ******************************************************************************/

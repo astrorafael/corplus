@@ -1,0 +1,85 @@
+/******************************************************************************
+ *
+ * $Name: corplus-1v5 $
+ * $Header: c:\\Repositorio/corplus/tipos.lib,v 1.1.1.1 2004/09/22 22:44:20 Astrorafael Exp $
+ *
+ * CREDITOS
+ *
+ * Version original de Cristobal García y Javier Pérez.
+ * Version renovada de Rafael González.
+ *
+ * Este fichero se distribuye bajo licencia de software abierto BSD
+ * Ver fichero BSDLicen.txt adjunto.
+ *
+ * DESCRIPCION
+ *
+ * En este fichero se han puesto las definiciones de tipos de datos que se
+ * utilizan por otros módulos.
+ * Necesita importar el fichero xilinx.lib para obtener la constante XIL_SIZE
+ * Necesita importar el fichero protocolo.lib para obteer la definicion
+ * de los mensajes entrantes y salientes.
+ *
+ ******************************************************************************/
+
+/*** BeginHeader */
+#ifndef TIPOS_H
+#define TIPOS_H
+
+#use "protocolo.lib"
+
+/**********************************************************/
+/* definicion del buffer polivalente que se usa para todo */
+/**********************************************************/
+
+#define KBYTES (1024)
+
+
+#ifdef X4005E
+    #warnt "Utilizando Xilinx X5005E"
+    #define XIL_SIZE 12
+#else
+    #define XIL_SIZE 7
+#endif
+
+typedef union {
+	struct {
+		Mensaje_Entrante entrante;
+		Mensaje_Saliente saliente;
+	} mensaje;
+	char firmware[XIL_SIZE*KBYTES];
+} BufferGlobal;
+
+/**************************************************************************/
+/* definicion de un punto de red y de los indices del array de remitentes */
+/**************************************************************************/
+
+#define REM_DEFECTO          0 /* remitente que hace la conexion inicial y mantenimineto */
+#define REM_PERIF_SER_A      1 /* remitente de las peticiones que van al puerto serie A */
+#define REM_PERIF_SER_B      2 /* remitente de las peticiones que van al puerto serie B */
+#define REM_PERIF_SER_C      3 /* remitente de las peticiones que van al puerto serie C */
+#define REM_PERIF_SER_D      4 /* remitente de las peticiones que van al puerto serie D */
+#define REM_PERIF_CCD_PPAL   5 /* remitente de las peticiones que van a la CCD principal */
+#define REM_PERIF_CCD_GUIA   6 /* remitente de las peticiones que van a la CCD  guia */
+#define REM_POTENCIA         7 /* remitente de peticiones de potencia */
+
+
+#define NUM_REMITENTES   8	/* tamaño del array de remitentes */
+
+typedef struct {
+	unsigned long ip;
+   	unsigned int  puerto;
+} PuntoDeRed;
+
+
+#endif
+/*** EndHeader  */
+
+/******************************************************************************
+ *
+ * $Log: tipos.lib,v $
+ * Revision 1.1.1.1  2004/09/22 22:44:20  Astrorafael
+ * Version inicial
+ *
+ *
+ ******************************************************************************/
+

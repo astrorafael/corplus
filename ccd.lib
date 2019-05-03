@@ -1,0 +1,1976 @@
+/******************************************************************************
+ *
+ * $Name: corplus-1v5 $
+ * $Header: c:\\Repositorio/corplus/ccd.lib,v 1.16 2004/11/23 23:46:42 Astrorafael Exp $
+ *
+ * CREDITOS
+ *
+ * Version original de Cristobal García y Javier Pérez.
+ * Version renovada de Rafael González Fuentetaja.
+ *
+ * Este fichero se distribuye bajo licencia de software abierto BSD
+ * Ver fichero BSDLicen.txt adjunto.
+ *
+ * DESCRIPCION
+ *
+ * Este es el fichero que contiene:
+ * - la programacion e inicializacion de la Xilinx
+ * - las rutinas de bajo nivel de manejo del secuenciador Xilinx
+ * - las rutinas de manejo de alto nivel de las dos camaras CCD Audine.
+ *
+ * Topología del CCD
+ * -----------------
+ *
+ * En la cuenta de columnas totales se incluyen no solo las columnas negras
+ * de la zona de imagen del CCD sino tambien los pixeles inactivos del principio.
+ * Analogamente, la cuenta de filas totales incluye las filas negras al principio
+ * y al final de la zona activa del detector.
+ *
+ * Siempre se trabaja con una region de interes definida por las coordenadas
+ * (x1,y1) y (x2,y2). Se supone que x1<x2 e y1<y2. La zona de interes NO incluye
+ * a (x2,y2), sino (x2-1, y2-1). Las cuentas se facilitan un poco.
+ *
+ * Sin embargo, el software no maneja coordenadas directamente, sino otras
+ * magnitudes como exploradasX, exploradasY, etc.  Estas magnitudes se calculan
+ * cuando viene el mensaje de comienzo de exposición. En el momento de la lectura
+ * estas magnitudes se convierten en los límites de los bucles y se evita la
+ * realización de aritmética adicional.
+ *
+ * Las columnas fuera de la region de interés se saltan con una secuencia de
+ * reloj más rápida. Esta secuencia salta los pixeles en múltiplos de SEQ_KCOL.
+ * Como las columnas a saltar no siempre son múltiplos de SEQ_KCOL, cuando se
+ * explora una imagen completa (ej. 768x512) se introducen en las laterales
+ * columnas inactivas o negras. Este efecto aún no está corregido
+ * (no se si merece la pena). El software de adquisición o tratamiento del PC
+ * puede realizar esta tarea.
+ *
+ * Los modos de binning son "cuadrados", es decir 1x1, 2x2, 3x3 y 4x4. Por ello
+ * se identifican solo con un número.
+ *
+ ******************************************************************************/
+
+/*** BeginHeader */
+#ifndef CCD_H
+#define CCD_H
+
+#ifndef MEDIDAS
+#define MEDIDAS 0  /* para las medidas de prestaciones */
+#endif
+
+#ifdef ZPRUEBAS
+   #use "zimport.lib"
+   #warnt "Utilizando zimport"
+  #ifdef X4005E
+    #zimport "roc2ca_5k.bit" fic_prog_Xilinx     //para FPGA XC4005E
+  #else
+    #zimport "roc2ca_3k.bit" fic_prog_Xilinx     //para FPGA XC4003E
+  #endif
+#else
+  #ifdef X4005E
+    #ximport "roc2ca_5k.bit" fic_prog_Xilinx     //para FPGA XC4005E
+  #else
+    #ximport "roc2ca_3k.bit" fic_prog_Xilinx     //para FPGA XC4003E
+  #endif
+#endif
+
+
+
+#use "tipos.lib"
+
+/*
+ * Número de columnas que se saltan de de golpe cuando
+ * se efectua un disparo de secuenciador con la secuencia de
+ * lectura rápida, saltando columnas sin digitalizar.
+ * Esta constante no se puede cambiar sin cambiar el hardware de la Xilinx.
+ */
+
+#define SEQ_KCOL     5
+
+/*
+ * Constante de los contadores.
+ * Hay que cargar 0xFE en el contador de mas peso para que no rebose al cargarlo.
+ */
+
+#define SEQ_KCUENTA 0xFEFF
+
+
+
+/*
+ * Esto el resultado de mi ingenieria inversa al fichero .bit.
+ *  Está bien para culturilla general, pero no hace falta
+ */
+
+
+#if 0
+typedef struct {
+	unsigned int longi1;    /* longitud de cadena de caracteres que sigue, incluyendo 0x00 */
+	char* field1;           /* ASCIIZ: no se que es */
+	char relleno[2];        /* no se que es. ¿ numero de version ? */
+	char letraA;            /* letra 'a' */
+	unsigned int  longFich; /* longitud de cadena de caracteres que sigue, incluyendo 0x00 */
+	char* nombreFich[?];    /* ASCIIZ: nombre de fichero */
+	char letraB;            /* letra 'b' */
+	unsigned int  longFPGA; /* longitud de cadena de caracteres que sigue, incluyendo 0x00 */
+	char* modeloFPGA[?];    /* ASCIIZ: nombre del modelo de FPGA */
+	char letraC;            /* letra 'c' */
+	unsigned int longFecha; /* longitud de cadena de caracteres que sigue, incluyendo 0x00 */
+	char* fechaCompila[?];  /* ASCIIZ: fecha de compilacion def fichero .bit */
+	char letraD;            /* letra 'd' */
+	unsigned int longHora;  /* longitud de cadena de caracteres que sigue, incluyendo 0x00 */
+	char* horaCompila[?];   /* ASCIIZ: hora de compilacion def fichero .bit */
+	char letraE;            /* letra 'e' */
+	long longFirmware;      /* longitud del array que sigue */
+	char* firmware;         /* sin nulo al final. Parece que siempre empieza con 0xFF */
+} FicheroBit;
+#endif
+
+
+/******************************************************************************/
+/*        Registros del secuenciador hardware de la Xilinx  Direcciones       */
+/******************************************************************************/
+
+#define X_REG_CONTROL     0xE000
+#define X_REG_STATUS      0xE100
+#define X_REG_FIFO_LO     0xE200
+#define X_REG_FIFO_HI     0xE201
+#define X_REG_WRSEC       0xE300
+#define X_REG_WRSEC_B     0xE340
+#define X_REG_CONTSEC_HI  0xE3FE
+#define X_REG_CONTSEC_LO  0xE3FF
+#define X_REG_CONTSEC_CLR 0xE3FD
+#define X_REG_FASES       0xE400
+#define X_REG_FASESB      0xE500
+#define X_REG_SELCAM      0xE600
+
+/******************************************************************************/
+/*             Definicion de los bits del registro X_REG_CONTROL              */
+/******************************************************************************/
+
+#define X_VACIO        0x00     /* todo a 0  */
+#define X_TRIGGER_ON   0x01     /* 1 habilita disparo de secuencia, 0 la detiene */
+#define X_CLK_ON       0x02     /* 1=Clock rapido activado */
+#define X_TEST_ON      0x10     /* 1=patron de test activado */
+// 7 - (AB)   1 estado normal para secuencias, 0 se puede escribir la secuencia
+#define X_CARGA_ON     0x80     /* 1=El Secuenciador esta cargado */
+
+//------------------- Significado de los bits de X_REG_STATUS
+// 0 - EMPTY de FIFO
+// 1 - LAST de FIFO
+// 2 - END de sencuenciador, fin de secuencia
+// 3
+// 4
+// 5
+// 6
+// 7
+
+/******************************************************************************/
+/*             Definicion de los bits del registro X_REG_FASESB               */
+/******************************************************************************/
+
+/*
+ * En esta version delfirmware de la Xilinx, la definicion de los bits
+ * a escribir en el registro X_REG_FASESB es justamente al revés de los niveles
+ * lógicos que existen tras los inversores U1 y U2 de la Audine.
+ * Aqí no existe la compliación adicional del PC de un bit
+ * invertido del registro de control de puerto paralelo.
+ */
+
+#define X_SOA 		0x08		/* 1=apaga amplificador CCD */
+#define X_SHU 		0x04		/* 1=shutter en reposo*/
+#define X_AUX1 	0x02		/* (Aux1,Aux2) 0,0=Vpelt  1,0=Vccd */
+#define X_AUX2		0x01		/* (Aux1,Aux2) 0,1=Tccd   1,1=Tcaja */
+
+#define X_AUXMASK (~(X_AUX1 | X_AUX2))  /* para poner bits Aux1 y Aux2 a cero */
+
+/* amplif encendido: ---- 0xxx ----  */
+#define X_AMPLI_ON(fasesB) ((fasesB) & ~X_SOA)
+
+/* amplif apagado:   ---- 0xxx ----  */
+#define X_AMPLI_OFF(fasesB) ((fasesB) | X_SOA)
+
+/* salida shutter en U2.8 a 0V:  ---- x1xx ----  */
+#define X_SHUTTER_0V(fasesB) ((fasesB) | X_SHU)
+
+/*   salida shutter en U2.8 a +5V: ---- x0xx ----  */
+#define X_SHUTTER_5V(fasesB)   ((fasesB) & ~X_SHU)
+
+/* Tension Peltier:  ---- xx00 ----  */
+#define X_VPELT(fasesB)      ((fasesB) & X_AUXMASK)
+
+/* Temperatura CCD:  ---- xx01 ----  */
+#define X_TCCD(fasesB)      (((fasesB) & X_AUXMASK) | X_AUX2)
+
+/* Tension CCD:      ---- xx10 ----  */
+#define X_VCCD(fasesB)      (((fasesB) & X_AUXMASK) | X_AUX1)
+
+/* Temperatura caja:  ---- xx11 ---- */
+#define X_TCAJA(fasesB)     (((fasesB) & X_AUXMASK) | (X_AUX1 | X_AUX2))
+
+/* Estado de reposo: shutter en reposo, Amplif encendido, Vccd seleccionada */
+#define X_REPOSO    (X_SHU | X_AUX1)
+
+/*** EndHeader  */
+
+
+/*** BeginHeader xil_download */
+extern void xil_download(void);
+/*** EndHeader */
+
+
+/*
+ * FUNCION:
+ *	void xil_modoProg(void);
+ *
+ * DESCRIPCION:
+ *	Pone a la Xilinx en modo de programación para descargarle el firmware.ç
+ *	Esta funcion es de uso interno.
+ */
+
+
+static void xil_modoProg(void)
+{
+#asm
+	ld hl, PDDRShadow         ; xprogLOW
+	ld de, PDDR
+	res 1, (hl)               ; bit #1 a 0
+	ioi ldd
+	nop
+
+	ld hl, PDDRShadow         ; xclkLOW
+	ld de, PDDR
+	res 2, (hl)               ; bit #2 a 0
+	ioi ldd
+
+	ld hl, PDDRShadow         ; xdinLOW
+	ld de, PDDR
+	res 3, (hl)               ; bit #3 a 0
+	ioi ldd
+	nop
+
+	ld hl, PDDRShadow         ; xprogHIG
+	ld de, PDDR
+	set 1, (hl)               ; bit #1 a 1
+	ioi ldd
+	nop
+#endasm
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*
+ * FUNCION:
+ *	void xil_descarga(char* firmware, long length)
+ *
+ * PARAMETROS:
+ *	firmware - puntero al area de memoria donde está el firmware.
+ *	length - longitud del firmware
+ *
+ * DESCRIPCION:
+ *	Bucle de descargar del firmware que reside en memoria a la Xilinx.
+ *	El código se ha hecho en ensamblador porque la programación es casi
+ *	instantánea. En C tarda varios segundos.
+ *
+ * NOTAS:
+ *	Esta funcion es de uso interno.
+ * Por alguna extraña razon, el campo de longitud debe ser long. Con int no funciona.
+ * Ojo a como se referencia desde el ensamblador la variable automática llamada dato
+ */
+
+static void xil_descarga(char* firmware, long length)
+{
+	auto unsigned char dato;
+
+	while(length-- >0) {
+		dato = *firmware++;
+		#asm
+			ld hl, (sp+@SP+dato)
+         		ld a, l
+			ld b, 9
+
+		clock_bajo:
+			ld hl, PDDRShadow     ;xclkLOW
+			ld de, PDDR
+			res 2, (hl) ;bit #2 a 0
+			ioi ldd
+			nop
+
+			ld h, a
+			sla a
+			bit 7, h
+			jp z, dato_bajo
+
+		dato_alto:
+			ld hl, PDDRShadow     ;xdinHIG
+			ld de, PDDR
+			set 3, (hl)  ;bit #3 a 1
+			ioi ldd
+			nop
+			jp clock_alto
+
+		dato_bajo:
+			ld hl, PDDRShadow      ;xdinLOW
+			ld de, PDDR
+			res 3, (hl)  ;bit #3 a 0
+			ioi ldd
+			nop
+
+		clock_alto:
+			ld hl, PDDRShadow       ;xclkHIG
+			ld de, PDDR
+			set 2, (hl)  ;bit #2 a 1
+			ioi ldd
+			djnz clock_bajo
+		#endasm
+	}
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*
+ * FUNCION:
+ *	void xil_download(void)
+ *
+ * DESCRIPCION:
+ *	Lee el fichro importado con #ximport (o #zimport) a una
+ *	zona de memoria 'root' de datos.
+ *	Configura la E/S del Rabbit para el direccionamiento externo
+ *	a la Xilinx.
+ *	Salta la cabecera del fichero, pone a la Xilinx en modo de
+ *	programación y le descarga el firmware.
+ *
+ * NOTAS:
+ *	La version usada es la de #ximport.
+ *
+ */
+
+
+#ifndef ZPRUEBAS
+
+/* IMPLEMENTACION CON FICHERO SIN COMPRIMIR CON XIMPORT */
+
+void xil_download(void)
+{
+	extern BufferGlobal bigbuf;
+
+	unsigned int aux2;
+	long size_file;
+	unsigned long	t0;
+	char* firmware;
+
+	/* Configuración de los pines FPGA  */
+
+	WrPortI(PDDDR,&PDDDRShadow, PDDDRShadow | 0x0E); // los bits a 1 son salidas
+	WrPortI(PDDCR,&PDDCRShadow, PDDCRShadow & 0xF1); // los pines de salida no son colector abierto
+
+	/* Configuracion de los bancos de salida direccion 0xE000-0xFFFF  */
+
+	WrPortI(IB7CR, NULL, 0xC8); //1 Wait State, funcion CS, permite escribir
+	WrPortI(PEDDR, &PEDDRShadow,PEDDRShadow | 0x80);//PE3 and PE2 as outputs
+	WrPortI(PEFR, &PEFRShadow,  PEFRShadow  | 0x80); //PE7 es el strobe de salida
+
+	/* copia el fichero a memoria principal "root" */
+
+	size_file = xgetlong(fic_prog_Xilinx);
+	xmem2root(bigbuf.firmware, fic_prog_Xilinx+4, (int)size_file);
+
+	/* busca el comienzo de verdad del firmware */
+
+ 	for(aux2=0; bigbuf.firmware[aux2++] != 0xFF;  size_file--);
+	aux2--;
+
+	/* Y ahora programa de verdad la xilinx */
+
+	xil_modoProg();
+	t0 = MS_TIMER + 5;
+	while (MS_TIMER < t0);
+	xil_descarga(&bigbuf.firmware[aux2], size_file);
+}
+
+#else
+
+/* IMPLEMENTACION CON FICHERO COMPRIMIDO CON ZIMPORT */
+
+void xil_download(void)
+{
+	extern BufferGlobal bigbuf;
+	auto ZFILE inf1; // The ZFILE struct is used for compressed files
+
+	auto unsigned int aux2;
+	auto char* firmware;
+	auto int cabecera;
+	auto int bytes_read;
+
+	/* Configuración de los pines FPGA  */
+
+	WrPortI(PDDDR,&PDDDRShadow, PDDDRShadow | 0x0E); // los bits a 1 son salidas
+	WrPortI(PDDCR,&PDDCRShadow, PDDCRShadow & 0xF1); // los pines de salida no son colector abierto
+
+	/* Configuracion de los bancos de salida direccion 0xE000-0xFFFF  */
+
+	WrPortI(IB7CR, NULL, 0xC8); //1 Wait State, funcion CS, permite escribir
+ 	WrPortI(PEDDR, &PEDDRShadow,PEDDRShadow | 0x80); //PE3 and PE2 as outputs
+ 	WrPortI(PEFR,  &PEFRShadow, PEFRShadow  | 0x80); //PE7 es el strobe de salida
+
+	OpenInputCompressedFile(&inf1, fic_prog_Xilinx);
+
+	/* Y ahora programa de verdad la xilinx */
+
+	xil_modoProg();
+   cabecera = 1;
+
+	// This is the read loop, do decompression on-the-fly
+	while(bytes_read = ReadCompressedFile(&inf1, bigbuf.firmware, sizeof bigbuf.firmware)) {
+		if(cabecera) {  	/* busca el comienzo de verdad del firmware */
+			for(aux2=0; bigbuf.firmware[aux2++] != 0xFF; bytes_read-- );
+			aux2--;  cabecera=0;
+		} else {
+			aux2 = 0;
+		}
+		xil_descarga(&bigbuf.firmware[aux2], bytes_read);
+	}
+
+	/* cierra fichero para liberar memoria */
+	CloseInputCompressedFile(&inf1);
+}
+
+
+#endif
+
+
+/******************************************************************************/
+/*                    MANEJO DEL SECUENCIADOR DE LA XILINX                    */
+/******************************************************************************/
+
+/*
+ * NOTA: En esta versión del firmware de la Xilinx, la definición de los bits
+ * a escribir en el registro de X_REG_FASES coincide con los niveles lógicos que
+ * encontramos tras los chips U1 y U2 de la Audine.
+ * Esto facilita mucho el diseñar secuencias nuevas, puesto que no hay que
+ * pensar "al revés"
+ */
+
+/*** BeginHeader seq_sensor */
+#define SEQ_SENSOR_LEN 22
+extern const char seq_sensor[];
+/*** EndHeader  */
+
+
+
+/*
+ * Secuencia neecsaria para la lectura de los 2 sensores de temperatura
+ * de la cámara y el voltaje aplicado al peltier.
+ * Version RAM de 128 bytes.
+ */
+
+const char seq_sensor[SEQ_SENSOR_LEN]=
+{
+	0x09,0x09,0x01,0x09,0x09,0x09,0x09,0x09,0x09,0x09,0x09,
+	0x19,0x29,0x39,0x49,0x59,0x69,0x79,
+	0x09,0x09,0x89,0x09
+};
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*** BeginHeader seq_linea_rapida */
+void seq_linea_rapida(int pixels);
+/*** EndHeader  */
+
+
+/*
+ * FUNCION:
+ *	void seq_linea_rapida(int pixels);
+ *
+ * PARAMETROS:
+ *	 pixels - columnas a saltar. Este numero debe estar ya dividido por SEQ_KCOL.
+ *
+ * DESCRIPCION:
+ *	Esta funcion desplaza rápidamente las columnas por el registro de desplazamiento
+ *	sin efectuar digitalización alguna. Se utiliza para saltar las columnas que
+ * no son de interes dentro de una fila.
+ *	Se limpia el contador de secuencias, se carga el contador de secuencia y se dispara.
+ *
+ */
+
+
+void seq_linea_rapida(int pixels)
+{
+	auto char valorCont[2];	/* valor a cargar descompuesto en dos bytes */
+
+	*(int *)(valorCont) =  SEQ_KCUENTA - pixels;
+
+
+   #asm
+   	ld a, 0FAh
+      ioe ld (X_REG_CONTSEC_CLR), a  ; limpia contador de secuencias
+
+      ld hl, (sp+@SP+valorCont)       ; carga en el contador
+      ld a, h
+      ioe ld (X_REG_CONTSEC_HI), a
+      ld a, l
+      ioe ld (X_REG_CONTSEC_LO), a
+
+      ld a, X_CARGA_ON | X_TRIGGER_ON | X_CLK_ON
+      ioe ld (X_REG_CONTROL), a        ; dispara secuenciador
+
+	sig_col_rap:
+		ld 	b, 20              			; valor de espera = 20
+
+	flag_fifo_vac_rap:
+		ioe  ld a, (X_REG_STATUS)       ; leo reg control
+		bit 2, a
+		jr nz, fin_rap                  ; ultimo pixel
+		bit 0, a
+		jr nz, leo_xil_rap             ; pixel siguiente
+		djnz flag_fifo_vac_rap
+
+	leo_xil_rap:
+		ioe  ld a, (X_REG_FIFO_HI)		 ; byte alto limpiar flag empty
+		jr sig_col_rap
+
+	fin_rap:
+		ioe  ld a, (X_REG_FIFO_HI)		; idem
+   	ld a, X_CARGA_ON
+      ioe ld (X_REG_CONTROL), a 		; detiene secuenciador
+#endasm
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*
+ * FUNCION:
+ *	int*  seq_explorar_npixels(int* buffer);
+ *
+ * PARAMETROS:
+ *	 buffer - puntero al area de memoria donde dejar las columnas digitalizadas.
+ *
+ * DEVUELVE:
+ *	el puntero actualizado.
+ *
+ * DESCRIPCION:
+ *	Esta funcion digitaliza un número de columnas dado, que se ha cargado previamente
+ *	en los registros contadores de la Xilinx. Al final de la digitalización, devuelve
+ * un puntero a la zona de memoria libre donde seguir digitalizando y asi poder
+ *	invocar nuevamente la función si hace falta.
+ *
+ *	Esta funcion es de uso interno a este modulo.
+ */
+
+
+static int* seq_explorar_npixels (int* buffer)
+{
+#asm
+	sig_col:
+		ld b, 220			           ; valor max de espera = 220
+
+	flag_fifo_vacia:
+		ioe ld a, (X_REG_STATUS) 	  ; leo reg control
+		bit 2, a
+		jr nz, fin		              ; ultimo pixel
+		bit 0, a
+		jr nz, leo_xilinx            ; pixel siguiente
+		djnz flag_fifo_vacia
+
+   leo_xilinx:
+		ioe  ld a, (X_REG_FIFO_LO)		; lee byte bajo de la FIFO
+		ld (hl), a                    ; escribe al buffer
+		inc hl
+		ioe  ld	a, (X_REG_FIFO_HI)	; lee byte alto de la FIFO
+		ld (hl), a                    ; escribe al buffer
+		inc hl
+
+		jr sig_col
+	fin:
+		ioe  ld a, (X_REG_FIFO_LO)		; lee byte bajo de la FIFO
+		ld (hl), a                    ; escribe al buffer
+		inc hl
+		ioe  ld	a, (X_REG_FIFO_HI)	; lee byte alto de la FIFO
+		ld (hl), a                    ; escribe al buffer
+		inc hl
+
+		ld (sp+@SP+buffer), hl		; guardo el ptr actualizado en su variable temporal
+		ld a, X_CARGA_ON
+      ioe ld (X_REG_CONTROL), a 		; detiene secuenciador
+   	ld hl, (sp+@SP+buffer)			; devuelve el puntero actualizado en hl
+#endasm
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+
+/*** BeginHeader seq_leer_cols_activas */
+int*  seq_leer_cols_activas(int* buffer, int exploradas, int patron);
+/*** EndHeader  */
+
+
+/*
+ * FUNCION:
+ *	int*  seq_leer_cols_activas(int* buffer, int exploradas, int patron);
+ *
+ * PARAMETROS:
+ *	 buffer - puntero al area de memoria donde dejar las columnas digitalizadas.
+ *	 exploradas - numero de columnas a digitalizar
+ *	 patron - flag de patron. 0x00=normal. 0x10=sacar patron de barras.
+ *
+ * DEVUELVE:
+ *	el puntero actualizado.
+ *
+ * DESCRIPCION:
+ *	Esta funcion digitaliza una cantidad de 'exploradas' columnas y las deja en
+ *	el buffer suministrado. Al final de la digitalización, devuelve
+ * un puntero a la zona de memoria libre donde seguir digitalizando y asi poder
+ *	invocar nuevamente la función si hace falta.
+ *
+ *	Esta funcion es la que usa el modulo de ccd para realizar la lectura de la zona
+ *	activa.
+ */
+
+int*  seq_leer_cols_activas(int* buffer, int exploradas, int patron)
+{
+
+#if MEDIDAS == 0	/* Version normal */
+
+	auto char valorCont[2];		/* valor a cargar descompuesto en dos bytes */
+
+	*(int *)(valorCont) =  SEQ_KCUENTA+1 - exploradas;
+
+	#asm
+   	ld a, 0FAh
+      ioe ld (X_REG_CONTSEC_CLR), a  ; limpia contador de secuencias
+
+      ld hl, (sp+@SP+valorCont)       ; carga en el contador
+      ld a, h
+      ioe ld (X_REG_CONTSEC_HI), a
+      ld a, l
+      ioe ld (X_REG_CONTSEC_LO), a
+
+      ld a, X_CARGA_ON | X_TRIGGER_ON
+      ld hl, (sp+@SP+patron)
+      or l
+      ioe ld (X_REG_CONTROL), a        ; dispara
+   #endasm
+
+	return (seq_explorar_npixels (buffer));
+
+#else  /* Verion alternativa de test, solo software de COR */
+
+	auto int i;
+
+	for(i=0; i<exploradas; i++) {
+   		*buffer++ = i & 0x0F;	/* genera una rampa módulo 16  */
+	}
+   return buffer;
+
+#endif
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*
+ * FUNCION:
+ *	int*  seq_leer_sensor(int* buffer)
+ *
+ * PARAMETROS:
+ *	 buffer - puntero al area de memoria donde dejar la lectura de un sensor.
+ *
+ * DEVUELVE:
+ *	el puntero actualizado.
+ *
+ * DESCRIPCION:
+ *	Esta funcion digitaliza la lectura de uno de los sensores de temperatura
+ *	que se encuentran multiplexados a la entrada del conversor A/D.
+ *	El secuenciador se carga con un valor predefinido SEQ_KCUENTA para este menester.
+ * La selección de la entrada multiplexada la realiza la función llamante.
+ *
+ *	Esta funcion es interna a este módulo.
+ */
+
+static int*  seq_leer_sensor(int* buffer)
+{
+   #asm
+   	ld a, 0FAh
+      ioe ld (X_REG_CONTSEC_CLR), a  ; limpia contador de secuencias
+
+      ld hl, SEQ_KCUENTA       		 ; carga en el contador
+      ld a, h
+      ioe ld (X_REG_CONTSEC_HI), a
+      ld a, l
+      ioe ld (X_REG_CONTSEC_LO), a
+
+      ld a, X_CARGA_ON | X_TRIGGER_ON
+      ioe ld (X_REG_CONTROL), a        ; dispara
+	#endasm
+
+	return(seq_explorar_npixels(buffer));
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+
+
+/*** BeginHeader seq_carga */
+void seq_carga(unsigned int dir_RAM, char* buffer, char* bufLim);
+/*** EndHeader  */
+
+
+/*
+ * FUNCION:
+ *	void  seq_rellena_sensores(int* buffer);
+ *
+ * PARAMETROS:
+ *	dir_RAM - direccion de E/S del Rabbit donde reside la RAM del secuenciador de la Xilinx
+ *	buffer - puntero al area de memoria a copiar.
+ *	bufLim - puntero al final+1 del area de memoria a copiar
+ *
+ * DESCRIPCION:
+ *	Esta funcion carga en la RAM de la Xilinx la secuencia a utilizar.
+ *	Por optimización, se pasa el puntero al final+1 del area de memoria a copiar
+ *	ya que genera un código más compacto que si se pasa la longitud.
+ *
+ */
+
+void seq_carga(unsigned int dir_RAM, char* buffer, char* bufLim)
+{
+	auto char* p;
+
+#asm
+   ld a, X_VACIO
+   ioe ld (X_REG_CONTROL), a     ;  RAM del secuenciador para micro, secuenciador parado
+#endasm
+
+   for(p=buffer; p<bufLim; ) {
+   	WrPortE(dir_RAM++ ,NULL, *p++);
+   }
+
+#asm
+   ld a, X_CARGA_ON
+   ioe ld (X_REG_CONTROL), a     ;  AB=1 , RAM para secuenciador
+#endasm
+}
+
+
+
+/*** BeginHeader fasesB */
+extern char fasesB;		/* se usa como variable temporal en varias funciones */
+/*** EndHeader fasesB */
+
+char fasesB;
+
+
+
+/*
+ * FUNCION:
+ *	int seq_obt_no_forzado(char modoObt);
+ *
+ * PARAMETROS:
+ *	modoObt - modo de obturacion
+ *
+ * DESCRIPCION:
+ *
+ * Esta fincion comprueba si se desea forzar un nivel lógico determinado en el
+ * pin U2.8 que ataca al obturador. Si el bit #1 de modoObt está a 1 se fuerza
+ * un nivel lógico determinado. El nivel lógico a establecer se encuentra en el
+ * bit #0 de modoObt. Si este bit es 1, se ponen 5V en el pin U2.8 y si este
+ * bit está a cero , se ponen 0V en U2.8
+ *
+ * El bit #0 de modoObt aquí tiene la constante simbólica SEQ_OBT_5V pero en las
+ * otras funciones de obturador tiene la etiqueta simbólica CCD_OBT_INVERTIDO.
+ *
+ * DEVUELVE
+ *
+ * Devuelve un flag true si el nivel ha sido forzado y false en caso contrario.
+ * Este flag lo usan las funciones de abrir y cerrar obturador.
+ *
+ */
+
+/*** BeginHeader seq_obt_no_forzado */
+int seq_obt_no_forzado(char modoObt);
+#define SEQ_OBT_FORZADO   0x02
+#define SEQ_OBT_5V        0x01
+/*** EndHeader  */
+
+int seq_obt_no_forzado(char modoObt)
+{
+	extern char fasesB;
+
+   if(  (modoObt & SEQ_OBT_FORZADO) ) {
+		if(modoObt & SEQ_OBT_5V) {
+			WrPortE(X_REG_FASESB, &fasesB, X_SHUTTER_5V(fasesB)); /* forzado a 5V */
+      } else {
+			WrPortE(X_REG_FASESB, &fasesB, X_SHUTTER_0V(fasesB)); /* forzado a 0V */
+      }
+      return 0;    /* "no forzado" es false */
+	}
+   return 1;  /* "no forzado" es true */
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+
+/*** BeginHeader ccd */
+
+#define CCD_KLIMPIAS 1	/* numero de limpiezas del CCD por defecto */
+#define CCD_KOBT     6	/* 600 ms de retraso de obturador por defecto */
+
+#define CCD_OBT_INVERTIDO  0x01   /* otro alias para  SEQ_OBT_5V */
+
+/* indices y longitud del array ccd[] */
+
+#define NUM_CCD   2
+#define CCD_PPAL  0
+#define CCD_GUIA  1
+
+/* Estados de una camara CCD */
+
+#define CCD_INACTIVO   0
+#define CCD_EXPOSICION 1
+#define CCD_LECTURA    2
+
+
+typedef struct CCD_t {
+
+	char estado;              /* estado de la camara CCD. */
+   char fasesB;              /* shadow register de FasesB */
+	char id;                  /* CCD_PPAL o CCD_GUIA */
+	char periferico;          /* PERIF_CCD_PPAL o PERIF_CCD_GUIA */
+	PuntoDeRed* remitente;    /* referencia cruzada al remitente */
+	char numFoto;             /* Numero de orden de la foto en la secuencia de fotos */
+
+   unsigned long tLimp;      /* timestamp comienzo limpieza */
+	unsigned long tExp;       /* timestamp comienzo exposicion */
+	unsigned long tRead1;     /* timestamp comienzo lectura */
+	unsigned long tFinal;     /* timestamp fin lectura  */
+
+	unsigned int cols;        /* numero de columnas fisicas del sensor CCD */
+	unsigned int filas;       /* numero de filas fisicas del sensor CCD */
+	unsigned int x1;          /* punto inicial de la region de interes */
+	unsigned int y1;
+	unsigned int x2;          /* punto final de la region de interes */
+	unsigned int y2;
+
+
+	char modoObtu;            /* modo del obturador Audine.
+                                     0=normal, 1=invertido, 2=inactivo a 0, 3 inactivo a 1 */
+	char binning;             /* modo de Binning nxn = 1x1, 2x2, ... 6x6 */
+	char patron;              /* flag 0x10=sacar patron, 0=foto normal */
+	char nLimp;               /* nº limpiezas del CCD */
+	int  retardo;             /* retraso del obturardor en milisegundos. */
+
+	unsigned int primerasX;   /* primeras columnas a saltar ccd->x1/SEQ_KCOL */
+   unsigned int sobrantesX;	/* resto de columnas que no se pueden saltar de por secuencia rapida */
+	unsigned int exploradasX; /* ancho zona activa, con binning cccd->x2-ccd->x1/ ccd->binning */
+	unsigned int col_rap;     /* todas las columnas del CCD a saltar (ccd->cols/SEQ_KCOL)+1 */
+   unsigned int fil_rap;     /* todas las filas del CCD a saltar en limpiado(ccd->filas/4) */
+	unsigned int filasUDP;    /* filas completas que caben en un paquete UDP */
+	unsigned int bytesUDP;    /* bytes que ocupan dichas filas + cabecera */
+	unsigned int primerasY;   /* primeras filas a saltar ccd->y1/ccd->binning */
+	unsigned int exploradasY; /* alto zona activa con binning (ccd->y2 - ccd->y1)/ccd->binning */
+
+	unsigned int mensajesUDP; /* numero de mensajes UDP a enviar ccd->exploradasY / ccd->filasUDP */
+	unsigned int filasResto;  /* ultimas filas que sobran al formar los grupos */
+	unsigned int bytesResto;  /* bytes que ocupan las ultimas filas + cabecera */
+
+   char seqLimpCargada;			/* flag 1=secuencia de limpiado cargada */
+   char longSeqVert;         /* longitud de secuencia vertical */
+	char seqVert[16];         /* secuencia vertical. Maximo, 16 bytes */
+	char longSeqLect;         /* longitud de secuencia de lectura */
+	char seqLect[64];         /* secuencia de lectura. Maximo, 64 bytes */
+	char longSeqLimp;         /* longitud de secuencia de limpiado */
+	char seqLimp[64];         /* secuencia de limpiado. Maximo, 64 bytes */
+
+} CCD;
+
+extern CCD ccd[NUM_CCD];
+
+/*** EndHeader  */
+
+CCD ccd[NUM_CCD];
+
+/*** BeginHeader ccd_init */
+void ccd_init(void);
+/*** EndHeader  */
+
+/*
+ * FUNCION:
+ *	ccd_init(void);
+ *
+ * DESCRIPCION:
+ *	Inicializa la estructura CCD de las dos cámaras Audine.
+ *
+ */
+
+void ccd_init(void)
+{
+	extern CCD ccd[];
+	extern PuntoDeRed remitente[];
+
+	memset((char *)ccd, 0, sizeof ccd);
+	ccd[CCD_PPAL].nLimp   = ccd[CCD_GUIA].nLimp   = CCD_KLIMPIAS;
+	ccd[CCD_PPAL].retardo = ccd[CCD_GUIA].retardo = CCD_KOBT;
+	ccd[CCD_PPAL].estado  = ccd[CCD_GUIA].estado  = CCD_INACTIVO;
+
+   /* ojo a esto si se cambia el protocolo COR */
+   ccd[CCD_PPAL].cols    = ccd[CCD_GUIA].cols    = 200;
+	ccd[CCD_PPAL].x1      = ccd[CCD_GUIA].x1      = 0;
+	ccd[CCD_PPAL].x2      = ccd[CCD_GUIA].x2      = 200;
+	ccd[CCD_PPAL].filas   = ccd[CCD_GUIA].filas   = 100;
+	ccd[CCD_PPAL].y1      = ccd[CCD_GUIA].y1      = 0;
+	ccd[CCD_PPAL].y2      = ccd[CCD_GUIA].y2      = 100;
+	ccd[CCD_PPAL].binning = ccd[CCD_GUIA].binning = 1;
+   ccd_precalcular(&ccd[CCD_PPAL]);
+   ccd_precalcular(&ccd[CCD_GUIA]);
+
+   ccd[CCD_PPAL].modoObtu = ccd[CCD_GUIA].modoObtu = SEQ_OBT_FORZADO;
+	ccd[CCD_PPAL].periferico = PERIF_CCD_PPAL;
+	ccd[CCD_GUIA].periferico = PERIF_CCD_GUIA;
+	ccd[CCD_PPAL].id = CCD_PPAL;
+	ccd[CCD_GUIA].id = CCD_GUIA;
+	ccd[CCD_PPAL].remitente = &remitente[REM_PERIF_CCD_PPAL];
+	ccd[CCD_GUIA].remitente = &remitente[REM_PERIF_CCD_GUIA];
+
+   /* Fases de reposo para los dos latches fasesB de Xilinx */
+
+   WrPortE(X_REG_SELCAM, NULL, CCD_GUIA);
+   WrPortE(X_REG_FASESB, &ccd[CCD_GUIA].fasesB, X_REPOSO);
+   WrPortE(X_REG_SELCAM, NULL, CCD_PPAL);
+   WrPortE(X_REG_FASESB, &ccd[CCD_PPAL].fasesB, X_REPOSO);
+
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+
+/*** BeginHeader ccd_obt_abrir, ccd_obt_cerrar */
+void ccd_obt_abrir(CCD* ccd);
+void ccd_obt_cerrar(CCD* ccd);
+/*** EndHeader  */
+
+
+
+/*
+ * FUNCION:
+ * void ccd_obt_abrir(CCD* ccd);
+ *
+ * PARAMETROS:
+ *
+ *	 	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ *	Esta funcion se encarga de abrir el obturador segun el modo definido para el
+ * mismo. Primero se prueba si se desea forzar  un nivel dado al obturador.
+ * Si no es así entonces:
+ *	  Si el bit 0 de modoObt esta a 0 =>  Pin U2.8 = 5V  (obturacion normal).
+ *	  Si el bit 0 de modoObt esta a 1 =>  Pin U2.8 = 0V  (obturacion invertida).
+ *
+ * En cualquier caso siempre se efectua el retardo del obturador.
+ *
+ * NOTA:
+ * Me dan muchas ganas de convertir esto a una 'cofunction' pero creo que
+ * al final iba a dar muchos problemas .
+ * Asi que lo dejo como está, malgastando CPU a manos llenas.
+ *
+ */
+
+
+
+void ccd_obt_abrir(CCD* ccd)
+{
+	extern char fasesB;
+	auto unsigned long t0;
+   auto int retardo;
+   auto char modoObt;
+
+   fasesB  = ccd->fasesB;
+   retardo = ccd->retardo;
+	modoObt = ccd->modoObtu;
+
+   if(seq_obt_no_forzado(modoObt)) {
+
+   	if(modoObt & CCD_OBT_INVERTIDO) {
+			WrPortE(X_REG_FASESB, &fasesB, X_SHUTTER_0V(fasesB)); /* abre  invertido */
+      } else {
+			WrPortE(X_REG_FASESB, &fasesB, X_SHUTTER_5V(fasesB)); /* abre normal */
+      }
+   }
+
+   ccd->fasesB = fasesB;	/* actualiza estado de fases B para esta CCD */
+
+	t0 = MS_TIMER + retardo;
+	while(t0 > MS_TIMER);
+}
+
+/*
+ * FUNCION:
+ * void ccd_obt_cerrar(CCD* ccd);
+ *
+ * PARAMETROS:
+ *
+ *	 	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ *	Esta funcion se encarga de cerrar el obturador segun el modo definido para el
+ * mismo. Primero se prueba si se desea forzar un nivel dado al obturador.
+ * Si no es así entonces:
+ *	  Si el bit 0 de modoObt esta a 0 =>  Pin U2.8 = 0V  (obturacion normal).
+ *	  Si el bit 0 de modoObt esta a 1 =>  Pin U2.8 = 5V  (obturacion invertida).
+ *
+ * En cualquier caso siempre se efectua el retardo del obturador.
+ *
+ * NOTA:
+ * Me dan muchas ganas de convertir esto a una 'cofunction' pero creo que
+ * al final iba a dar muchos problemas .
+ * Asi que lo dejo como está, malgastando CPU a manos llenas.
+ *
+ */
+
+void ccd_obt_cerrar(CCD* ccd)
+{
+	extern char fasesB;
+	auto unsigned long t0;
+   auto int retardo;
+   auto char modoObt;
+
+   fasesB  = ccd->fasesB;
+   retardo = ccd->retardo;
+	modoObt = ccd->modoObtu;
+
+
+   if(seq_obt_no_forzado(modoObt)) {
+   	if(modoObt & CCD_OBT_INVERTIDO) {
+			WrPortE(X_REG_FASESB, &fasesB, X_SHUTTER_5V(fasesB)); /* cierra invertido */
+      } else {
+			WrPortE(X_REG_FASESB, &fasesB, X_SHUTTER_0V(fasesB));  /* cierra normal */
+      }
+   }
+
+   ccd->fasesB = fasesB;	/* actualiza estado de fases B para esta CCD */
+	t0 = MS_TIMER + retardo;
+	while(t0 > MS_TIMER);
+}
+
+
+
+
+/*** BeginHeader ccd_rellena_sensores */
+void  ccd_rellena_sensores(CCD* ccd, int* buffer);
+/*** EndHeader  */
+
+/*
+ * FUNCION:
+ *	void  ccd_rellena_sensores(int* buffer);
+ *
+ * PARAMETROS:
+ *	 ccd - puntero a la CCD sobre la que se opera
+ *	 buffer - puntero al area de memoria donde dejar la lectura de un sensor.
+ *
+ * DESCRIPCION:
+ *	Esta funcion lee las 3 entradas analógicas (Tccd, Tcaja y Vpelt) que se encuentran
+ * multiplexadas junto a la señal del CCD. Luego deja la entrada en Vccd.
+ * Deposita los valores leidos en un buffer. Normalmente este buffer es parte
+ * del buffer del mensaje de respuesta del COR al ACOR.
+ *
+ */
+
+void ccd_rellena_sensores(CCD* ccd, int* buffer)
+{
+	extern char fasesB;
+
+   fasesB = ccd->fasesB;
+
+	WrPortE(X_REG_SELCAM, NULL, ccd->id);	/* asegura seleccionar la camara correcta */
+	WrPortE(X_REG_FASESB, &fasesB, X_TCCD(fasesB));
+   buffer = seq_leer_sensor(buffer);
+   WrPortE(X_REG_FASESB, &fasesB, X_TCAJA(fasesB));
+   buffer = seq_leer_sensor(buffer);
+   WrPortE(X_REG_FASESB, &fasesB, X_VPELT(fasesB));
+   buffer = seq_leer_sensor(buffer);
+	WrPortE(X_REG_FASESB,  &fasesB, X_VCCD(fasesB));	/* lo deja como estaba */
+   ccd->fasesB = fasesB;	/* actualiza estado de fases B para esta CCD */
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader ccd_carga_seq */
+void ccd_carga_seq (CCD* ccd, char binning);
+#define CCD_SEQ_LECTURA    0
+#define CCD_SEQ_SENSORES   1
+#define CCD_SEQ_LIMPIADO   2
+/*** EndHeader  */
+
+/*
+ * FUNCION:
+ *	void ccd_carga_seq (CCD* ccd, char secuencia);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *	secuencia - secuencia a cargar
+ *
+ * DESCRIPCION:
+ *	Esta función carga la secuencia adecuada para la lectura de columnas
+ *	por parte del secuenciador. Las secuencias a cargar están etiquetadas
+ *	como CCD_SEQ_SENSORES, CCD_SEQ_LIMPIADO y CCD_SEQ_LECTURA.
+ *
+ */
+
+void ccd_carga_seq (CCD* ccd, char secuencia)
+{
+	auto char* buffer;
+	extern const char seq_sensor[];
+	switch(secuencia) {
+
+		case CCD_SEQ_LECTURA:
+			buffer = ccd->seqLect;
+			seq_carga(X_REG_WRSEC, buffer, buffer+ccd->longSeqLect);
+			break;
+
+		case CCD_SEQ_SENSORES:
+			seq_carga(X_REG_WRSEC, seq_sensor, seq_sensor+SEQ_SENSOR_LEN);
+			break;
+
+		default:	/* el de limpieza */
+			buffer = ccd->seqLimp;
+			seq_carga(X_REG_WRSEC_B, buffer, buffer+ccd->longSeqLimp);
+	}
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader ccd_V1V2 */
+void ccd_V1V2 (CCD* ccd);
+/*** EndHeader  */
+
+
+/*
+ * FUNCION:
+ *	void ccd_V1V2 (CCD* ccd);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ *	Realiza el "clocking" de las fases V1 y V2 para desplazar una fila
+ *	al registro de desplazamiento horizontal. Si se llama varias veces,
+ *	se realiza el aplilamiento (binning) vertical.
+ *
+ * NOTA:
+ *	La presente implementación es en ensamblador. Ha resultado ser demasiado
+ *	rápida para las fases verticales y se han tenido que insertar retardos.
+ * Con 32 nops se genera un pulso de 4 useg, más que de sobra para el KAF-402ME
+ * Se han puesto 48 nops para igualarlo al valor nominal de 5useg de anchura de
+ * pulso recomendado para el KAF-1603ME
+ *
+ */
+
+
+void ccd_V1V2 (CCD* ccd)
+{
+  #asm
+         ld iy, hl              			; puntero a ccd tambien en iy
+         ld c, (iy+CCD_t+longSeqVert)  ; cuenta de bytes a bc
+         ld b, 0
+         ld de, CCD_t+seqVert		; offset respecto a estructura
+         add hl, de					; esta es la direccion del array
+         ld de, X_REG_FASES		; direccion de E/S destino a DE
+	loop: ioe ldi                 ; (DE++) = (HL++)
+   		dec de                  ; mantiene constante el puntero destino
+         nop nop nop nop nop nop nop nop nop nop nop nop nop nop nop nop
+         nop nop nop nop nop nop nop nop nop nop nop nop nop nop nop nop
+         nop nop nop nop nop nop nop nop nop nop nop nop nop nop nop nop
+         jp lo, loop					; bucle  hasta que bc == 0
+   #endasm
+
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader ccd_limpia */
+void ccd_limpia(CCD* ccd);
+/*** EndHeader  */
+
+/*
+ * FUNCION:
+ *	void ccd_limpia(CCD* ccd);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ *	Realiza la limpieza del chip entero, desplazando las filas de 4 en 4
+ * 	al registro de desplazamiento y luego limpiando dicho registro de
+ *	desplazamiento.
+ */
+
+void ccd_limpia (CCD* ccd)
+{
+	auto char limpieza, num_limpiezas, flagLimp;
+	auto unsigned int cols, filas, y;
+	auto int perro;
+
+
+	num_limpiezas = ccd->nLimp;
+
+	/* hago binning de 4 filas para que sea rapido */
+
+	/* No entiendo porqué pusieron cols   = ccd->cols/4+1 en el programa original
+	 * ya que el secuenciador salta pixeles de 5 en 5 con la secuencia rapida
+	 * Lo logico es usar col_rap, que ya está calculado ademas.
+	 */
+
+	cols   = ccd->col_rap;
+	filas  = ccd->fil_rap;
+
+   /* carga la secuencia de limpiado una sola vez en la vida del programa */
+   if( ! ccd->seqLimpCargada) {
+		ccd_carga_seq(ccd, CCD_SEQ_LIMPIADO);
+      ccd->seqLimpCargada = 1;
+   }
+
+	perro = VdGetFreeWd(50);	/* Parametro * 62.5 ms = 3 seg */
+
+   ccd->tLimp = MS_TIMER;
+
+	for (limpieza = 0; limpieza < num_limpiezas; limpieza++ ) {
+		dbgputchar(DIAG_LIMPIA);
+		for (y = 0; y < filas; y++ ) {
+			ccd_V1V2(ccd);
+			ccd_V1V2(ccd);
+			ccd_V1V2(ccd);
+			ccd_V1V2(ccd);
+			seq_linea_rapida(cols);
+			VdHitWd(perro); 	/* Reseteamos el perro virtual */
+		}
+	}
+	VdReleaseWd(perro);		/* Desactivamos el perro virtual */
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+
+/*** BeginHeader ccd_cancelaFoto */
+void ccd_cancelaFoto(CCD* ccd);
+/*** EndHeader  */
+
+/*
+ * FUNCION:
+ *	void ccd_cancelaFoto(CCD* ccd);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ *	Cancela la foto en curso, cerrando el obturador si fuera necesario.
+ */
+
+void ccd_cancelaFoto(CCD* ccd)
+{
+	if(ccd->estado != CCD_EXPOSICION)
+		return;
+
+	ccd_obt_cerrar(ccd);
+	ccd->estado = CCD_INACTIVO;
+}
+
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*** BeginHeader ccd_precalcular */
+void ccd_precalcular(CCD* ccd);
+/*** EndHeader  */
+
+/*
+ * FUNCION:
+ *	void ccd_precalcular(CCD* ccd)
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ * Precalcula los parametros necesarios durante la lectura del
+ * ccd para no perder el tiempo en hacer operaciones aritmeticas en ese
+ * momento.
+ *
+ * Como el numero total de columnas del CCD no es multiplo de SEQ_KCOL
+ * añadimos 1 al resultado de la expresion (ccd->cols/SEQ_KCOL) para
+ * asegurar a limpieza total del registro de desplazamiento.
+ *
+ * La expresiones ccd->x1/SEQ_KCOL puede generar un error de truncamiento
+ * que se traducirian en columnas negras al principio de la imagen.
+ * Por ello hay que digitalizar, pero no enviar ccd->sobrantesX.
+ * Esto cura los problemas en todos los modos de bining excepto el 3x
+ *
+ * NOTA 1: Si en una futura versión del protocolo COR se envían estos parámentros
+ * precalculados desde el PC, esta función se convertirá en una simple copia
+ * de bytes.
+ */
+
+void ccd_precalcular(CCD* ccd)
+{
+	/*
+    * BUG en el ACOR?
+    * Si por ekjemplo para el modo 768x512, debería ser x1=14, x2=768+14
+    * se envian en realidad x1=28, x2=768+28. Es decir, que las 14 columnas que
+    * habría que saltar al final ¡ se contabilizan al principio !
+    *
+    * 11/11/2004: Se añaden las columnas sobrantes, para saltar despacito con
+    * digitalizacion normal.
+    *
+    */
+
+	ccd->primerasX   = ccd->x1/SEQ_KCOL ;
+   ccd->sobrantesX  = (ccd->x1 - ccd->primerasX*SEQ_KCOL)/ ccd->binning;
+	ccd->exploradasX = (ccd->x2 - ccd->x1) / ccd->binning;
+
+	ccd->col_rap     = (ccd->cols/SEQ_KCOL)+1;
+   ccd->fil_rap     = ccd->filas/4;
+   ccd->filasUDP    = MAX_FOTO_LEN/(2*ccd->exploradasX);
+	ccd->bytesUDP    = 2*ccd->filasUDP*ccd->exploradasX+(UDP_BUF_SIZE-MAX_FOTO_LEN);
+	ccd->primerasY   = ccd->y1/ccd->binning;
+	ccd->exploradasY = (ccd->y2 - ccd->y1)/ccd->binning ;
+
+	ccd->mensajesUDP = ccd->exploradasY / ccd->filasUDP;
+	ccd->filasResto  = ccd->exploradasY % ccd->filasUDP;
+	ccd->bytesResto  = 2*ccd->filasResto*ccd->exploradasX+(UDP_BUF_SIZE-MAX_FOTO_LEN);
+}
+
+
+/*** BeginHeader ccd_foto */
+void ccd_foto(CCD* ccd);
+/*** EndHeader  */
+
+/*
+ * FUNCION:
+ *	void ccd_foto(CCD* ccd);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ *	Prepara la CCD seleccionada para una exposición.
+ */
+
+void ccd_foto(CCD* ccd)
+{
+	extern BufferGlobal bigbuf;
+   extern char fasesB;
+
+	auto unsigned long t0;
+	auto unsigned long duracion;
+
+	/* ignora peticiones en estado inadecuado */
+
+	if(ccd->estado != CCD_INACTIVO)
+		return;
+	ccd->estado = CCD_EXPOSICION;
+
+	/* copia la peticion del mensaje */
+ 	/*** EN CUANTO CAMBIE LA APLICACION ACOR VOY A PONER ESTE CODIGO OPTIMO ***/
+
+#if 0
+	ccd->binning = bigbuf.mensaje.entrante.cuerpo.petFoto.binning & 0x0F;
+	ccd->patron  = bigbuf.mensaje.entrante.cuerpo.petFoto.binning & 0x10;
+#else
+	switch (bigbuf.mensaje.entrante.cuerpo.petFoto.binning) {
+		case 1:
+		case 11:
+			ccd->binning = 1;  break;
+		case 2:
+		case 12:
+			ccd->binning = 2;  break;
+		case 3:
+		case 13:
+			ccd->binning = 3;  break;
+		case 4:
+		case 14:
+			ccd->binning = 4;  break;
+		default:
+      	ccd->binning  = 2;
+	}
+	ccd->patron  = (bigbuf.mensaje.entrante.cuerpo.petFoto.binning > 10 ) ? 0x10 : 0x00;
+#endif
+
+	ccd->cols  = bigbuf.mensaje.entrante.cuerpo.petFoto.cols ;
+	ccd->filas = bigbuf.mensaje.entrante.cuerpo.petFoto.filas ;
+	ccd->x1    = bigbuf.mensaje.entrante.cuerpo.petFoto.x1 ;
+	ccd->y1    = bigbuf.mensaje.entrante.cuerpo.petFoto.y1;
+	ccd->x2    = bigbuf.mensaje.entrante.cuerpo.petFoto.x2 ;
+	ccd->y2    = bigbuf.mensaje.entrante.cuerpo.petFoto.y2 ;
+	ccd->modoObtu =  bigbuf.mensaje.entrante.cuerpo.petFoto.modoObtu;
+	ccd->retardo  = 100 * bigbuf.mensaje.entrante.cuerpo.petFoto.retardo ;
+	ccd->nLimp    = bigbuf.mensaje.entrante.cuerpo.petFoto.nLimp ;
+	ccd->numFoto  = bigbuf.mensaje.entrante.cabecera.origen & 0xF0;
+
+#if 1	/* Comprobaciones inutiles si se hacen bien en el ACOR */
+	if (ccd->cols > 3500)  ccd->cols = 3500;
+	if (ccd->filas > 2000) ccd->filas =2000;
+
+	if (ccd->x2  > ccd->cols)   ccd->x2 = ccd->cols;
+	if (ccd-> y2 > ccd->filas)  ccd->y2 = ccd->filas;
+
+	if (ccd->x1 > ccd->x2) ccd->x1= 0;
+	if (ccd->y1 > ccd->y2) ccd->y1= 0;
+#endif
+
+	/* copiado de secuencias que vienen desde el PC */
+
+	ccd->longSeqLect = bigbuf.mensaje.entrante.cuerpo.petFoto.longSeqLect;
+	memcpy(ccd->seqLect, bigbuf.mensaje.entrante.cuerpo.petFoto.seqLect,
+			ccd->longSeqLect);
+
+	ccd->longSeqVert = bigbuf.mensaje.entrante.cuerpo.petFoto.longSeqVert;
+	memcpy(ccd->seqVert, bigbuf.mensaje.entrante.cuerpo.petFoto.seqVert,
+			ccd->longSeqVert);
+
+   ccd->longSeqLimp = bigbuf.mensaje.entrante.cuerpo.petFoto.longSeqLimp;
+	memcpy(ccd->seqLimp, bigbuf.mensaje.entrante.cuerpo.petFoto.seqLimp,
+			ccd->longSeqLimp);
+
+  ccd_precalcular(ccd);
+
+
+   /* duracion de la exposicion en milisegundos */
+   /* ojo, que la mutiplicacion debe ser de 32 bits */
+
+   duracion  = bigbuf.mensaje.entrante.cuerpo.petFoto.tSecExp*1000L;
+	duracion += bigbuf.mensaje.entrante.cuerpo.petFoto.tMsecExp;
+
+	/* Trazas de depuracion de la peticion de foto  */
+
+	dbgprintf1("\nColumnas : %d\n", ccd->cols);
+	dbgprintf1("Filas : %d\n", ccd->filas);
+	dbgprintf1("Binning : %d\n",ccd->binning);
+	dbgprintf1("x1 : %d\n", ccd->x1);
+	dbgprintf1("y1 : %d\n", ccd->y1);
+	dbgprintf1("x2 : %d\n", ccd->x2);
+	dbgprintf1("y2 : %d\n", ccd->y2);
+	dbgprintf1("Nº Limpiar : %d\n", ccd->nLimp);
+	dbgprintf1("Obturar : %d\n", ccd->modoObtu);
+	dbgprintf1("Retraso : %d\n", ccd->retardo);
+	dbgprintf1("patron : 0x%x\n", ccd->patron);
+   dbgprintf1("numFoto : 0x%x\n", ccd->numFoto);
+   dbgprintf1("duracion : %ld\n", duracion);
+	dbgprintf1("col_rap : %d\n", ccd->col_rap);
+	dbgprintf1("primerasX : %d\n", ccd->primerasX);
+   dbgprintf1("sobrantesX : %d\n", ccd->sobrantesX);
+	dbgprintf1("exploradasX : %d\n", ccd->exploradasX);
+
+	dbgprintf1("primerasY : %d\n", ccd->primerasY);
+	dbgprintf1("exploradasY : %d\n", ccd->exploradasY);
+
+	dbgprintf1("filasUDP : %d\n", ccd->filasUDP);
+	dbgprintf1("bytesUDP : %d\n", ccd->bytesUDP);
+	dbgprintf1("mensajesUDP : %d\n", ccd->mensajesUDP);
+	dbgprintf1("filasResto : %d\n", ccd->filasResto);
+	dbgprintf1("bytesResto : %d\n", ccd->bytesResto);
+
+
+   /* Limpia la ccd y anota referencias de tiempos.
+    * Lógicamente, el amplificador hay que apagarlo
+    * DESPUES de haber hecho la limpieza.
+    */
+
+   WrPortE(X_REG_SELCAM, NULL, ccd->id);	/* camara de guiado o camara ppal */
+   ccd_limpia(ccd);
+   WrPortE(X_REG_FASESB, &fasesB, X_AMPLI_OFF(fasesB));
+
+   t0 = MS_TIMER;
+	ccd->tExp = t0;
+	ccd->tRead1 = t0 + duracion;  /* tiempo final previsto */
+
+   /* abre el obturador
+    * Para los obturadores tipo CFS, que no tienen patron de shutter
+    * es necesario abrir el obturador DESPUES de limpiar la CCD.
+    * Para los otros da igual
+    */
+
+	ccd_obt_abrir(ccd);
+
+   /* Trata las tomas de BIAS. Esperemos que el ACOR mande un retardo
+    * nulo de obturador o si no, la toma bias no vale.
+    */
+
+   if(duracion == 0L) {
+     ccd_readout(ccd);
+	  ccd->estado = CCD_INACTIVO;
+   }
+}
+
+
+/*
+ * FUNCION:
+ *	void ccd_fin_foto(CCD* ccd);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ * Esta funcion envía a PC información adicional interesante sobre
+ * los tiempos de exposición y lectura. Se envían las marcas de tiempo
+ * para que el PC efectue la resta y saque los tiempos de exposición
+ * y lectura. También se envían las medidas de temperatura y voltaje
+ * del peltier  medidas justo en ese momento (al final de la foto)
+ */
+
+
+
+/*** BeginHeader ccd_fin_foto */
+void ccd_fin_foto(CCD* ccd);
+/*** EndHeader */
+
+void ccd_fin_foto(CCD* ccd)
+{
+	extern BufferGlobal bigbuf;
+	extern udp_Socket sock;
+   auto PuntoDeRed* remitente;
+
+   bigbuf.mensaje.saliente.cabecera.periferico = ccd->periferico+1;
+	bigbuf.mensaje.saliente.cabecera.origen = ORIGEN_COR;
+   bigbuf.mensaje.saliente.cuerpo.respFinFoto.tExp   = ccd->tExp;
+   bigbuf.mensaje.saliente.cuerpo.respFinFoto.tRead  = ccd->tRead1;
+   bigbuf.mensaje.saliente.cuerpo.respFinFoto.tFinal = ccd->tFinal;
+   ccd_rellena_sensores(ccd, &bigbuf.mensaje.saliente.cuerpo.respFinFoto.tempCCD);
+   remitente = ccd->remitente;
+
+   udp_sendto(&sock,
+			(char*) &bigbuf.mensaje.saliente,
+			sizeof bigbuf.mensaje.saliente.cuerpo.respFinFoto +
+         sizeof bigbuf.mensaje.saliente.cabecera,
+			remitente->ip,
+			remitente->puerto);
+
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader ccd_timeout */
+int ccd_timeout(CCD* ccd);
+/*** EndHeader  */
+
+
+/*
+ * FUNCION:
+ *	int ccd_timeout(CCD* ccd);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DEVUELVE:
+ *	Devuelve 1 si se ha realizado una lectura sobre el CCD
+ *	y 0 en caso contrario.
+ *
+ * DESCRIPCION:
+ *	A esta funcion se la llama periódicamente el bucle principal
+ *	para comprobar si la CCD seleccionada está en exposición.
+ *	Si lo está, comprueba si hay que efectuar la lectura o no.
+ *	El valor de retorno es útil para referescar el timestamp de
+ * 	la última actividad realizada, en el bucle principal.
+ */
+
+
+int ccd_timeout(CCD* ccd)
+{
+
+
+	if(ccd->estado != CCD_EXPOSICION)
+		return(0);
+
+	/* todavia no ha pasado el tiempo de exposicion */
+	if( MS_TIMER < ccd->tRead1 )
+   		return(0);
+
+	/* ya paso el tiempo de exposicion. Comienza la lectura.
+    * Selecciona esta camara, no sea que mientras estaba en exposicion
+    * se hubiera commutado a la otra camara.
+    */
+
+
+	ccd_readout(ccd);
+	ccd->estado = CCD_INACTIVO;
+	return(1);
+}
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader ccd_saltar_zona */
+void ccd_saltar_zona(CCD* ccd, int deltaY, int deltaX);
+/*** EndHeader */
+
+/*
+ * FUNCION:
+ *	void ccd_saltar_zona(CCD* ccd, int deltaY, int deltaX);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *	deltaY - filas a saltar
+ *	deltaX - columnas a saltar / SEQ_KCOL
+ *
+ * DESCRIPCION:
+ *	Salta un rectangulo de zona inactiva, de dimensiones
+ *	deltaY x deltaX. El parámetro deltaX debe estar ya dividido
+ * previamente por SEQ_KCOL, puesto que se trata de columnas
+ *	a saltar.
+ *	El salto de la zona inactiva tiene en cuenta el binning para
+ *	las filas. Así se realiza más rápido y de acuerdo con el
+ *	la exploración de la zona activa.
+ */
+
+void ccd_saltar_zona(CCD* ccd, int deltaY, int deltaX)
+{
+	auto int y, veces, Kbin;
+
+	Kbin  = ccd->binning;
+
+	for (y = 0; y < deltaY; y++ ) {
+		for (veces = 0; veces < Kbin; veces++) {
+			ccd_V1V2(ccd);
+      }
+		seq_linea_rapida(deltaX);
+	}
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+
+/*** BeginHeader ccd_fila */
+int* ccd_fila(CCD* ccd, int* buffer);
+/*** EndHeader */
+
+/*
+ * FUNCION:
+ *	int* ccd_fila(CCD* ccd, int* buffer);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *	buffer - comienzo de zona de memoria donde se dejan los pixeles digitalizados
+ *
+ * DEVUELVE:
+ *	el puntero actualizado en el buffer de memoria.
+ *
+ * DESCRIPCION:
+ *	Realiza la digitalización completa de una fila, realizando el binning de filas,
+ *	saltando las columnas inactivas, digitalizando las columnas activas y saltando
+ *	el resto de columnas inactivas.
+ *	Al devolver el puntero de memoria actualizado, nos permite llamarla varias
+ *	veces seguidas en un bucle.
+ */
+
+int* ccd_fila(CCD* ccd, int* buffer)
+{
+
+	/*
+    * limpia todo el registro de desplazamiento horizontal de cabo a rabo
+    * por ello NO hace falta saltar las últimas columnas de las filas apiladas
+    */
+
+	seq_linea_rapida(ccd->col_rap);
+
+
+
+	/*
+	 * Hace el apilado (binning) de filas y despues salta las primeras columnas.
+    * Afortunadamente, este trabajo ya lo hace la funcion ccd_saltar_zona()
+	 * particularizada para deltaY=1. El saltado se hace con la secuencia rápida
+	 */
+
+	ccd_saltar_zona(ccd, 1, ccd->primerasX);
+
+
+   /* 11/11/2004:
+    * Ahora salta los restos de columnas que no fueron saltadas por la
+    * secuencia rápida.Con esto nos cepillamos los restos de columnas oscuras
+    * que pudieran quedarnos. Las columnas se saltan en multiplos del binning.
+    * No recogemos el valor actualizado del buffer.
+    * De hecho lo vamos a machacar otra vez con las columnas activas.
+    */
+
+   if(ccd->sobrantesX) {
+   	 seq_leer_cols_activas(buffer, ccd->sobrantesX, ccd->patron);
+   }
+
+	/* digitalizamos las columnas activas de las filas apiladas por el binning */
+	buffer = seq_leer_cols_activas(buffer, ccd->exploradasX, ccd->patron);
+
+
+	return (buffer);
+}
+
+
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*** BeginHeader ccd_readout */
+void ccd_readout(CCD* ccd);
+/*** EndHeader */
+
+/*
+ * FUNCION:
+ *	void ccd_readout(CCD* ccd);
+ *
+ * PARAMETROS:
+ *	ccd - puntero a la CCD sobre la que se opera
+ *
+ * DESCRIPCION:
+ *	Esta funcion realiza la lectura completa de imagen del CCD
+ *	enviando la zona de interés en uno o varios mensajes UDP.
+ *
+ */
+
+void ccd_readout(CCD* ccd)
+{
+	extern BufferGlobal bigbuf;
+	extern udp_Socket sock;
+   extern char fasesB;
+
+	auto int perro, num_mensaje;
+	auto int fila, mensaje, filas_por_socket, filas_restantes, mensajes_udp;
+	auto int* buffer;
+	auto PuntoDeRed* remitente;
+
+	diag_putchar(DIAG_LECT);
+
+	/* carga la secuencia correspondiente a la lectura */
+
+	ccd_carga_seq(ccd, CCD_SEQ_LECTURA);
+
+	num_mensaje = 0;
+
+	/* inicializa variables locales de conveniencia para agilizar los bucles */
+
+	filas_por_socket =  ccd->filasUDP;
+	filas_restantes  =  ccd->filasResto;
+	mensajes_udp     =  ccd->mensajesUDP;
+	remitente        =  ccd->remitente;
+
+	/* rellenar la parte comun de la cabecera del mensaje de salida */
+
+	bigbuf.mensaje.saliente.cabecera.periferico = ccd->periferico;
+	bigbuf.mensaje.saliente.cabecera.origen = ccd->numFoto | ORIGEN_COR;
+	bigbuf.mensaje.saliente.cuerpo.respFoto.numCols = ccd->exploradasX;
+   bigbuf.mensaje.saliente.cuerpo.respFoto.numLineas =  filas_por_socket;
+
+	/*
+	 * recalcular referencia de tiempo tRead1 para dar un tiempo mas preciso.
+	 * Es a partir de este momento en el que podemos considerar que se va
+	 * a proceder a la lectura del CCD.
+    * La referencia de tiempo la debemos tomar antes de cerrar el obturador
+    * para los obutadores de tipo CFS que no tienen patrón de shutter.
+	 */
+
+   perro = VdGetFreeWd(100);	// 6 seg = Parametro * 62.5 ms
+
+   WrPortE(X_REG_SELCAM, NULL, ccd->id);
+   WrPortE(X_REG_FASESB, &fasesB, X_AMPLI_ON(fasesB));
+   ccd->tRead1 = MS_TIMER;
+	ccd_obt_cerrar(ccd);
+
+	/*
+	 * saltar primera zona inactiva: de [0,0]  a [cols-1, y1-1]
+	 * con binning vertical (apilado de filas)
+	 */
+
+	ccd_saltar_zona(ccd, ccd->primerasY, ccd->col_rap);
+   VdHitWd(perro);
+	/*
+	 *
+	 * digitalizar la zona activa, [x1,y1] a [x2-1,y2-1]
+	 * Se envía el máximo de filas enteras posibles en el tamaño
+	 * disponible por el buffer UDP
+	 */
+
+
+	for(mensaje=0; mensaje < mensajes_udp; mensaje++ ) {
+		buffer = (int *) bigbuf.mensaje.saliente.cuerpo.respFoto.datos;
+		for(fila=0; fila < filas_por_socket; fila++ ) {
+			buffer = ccd_fila(ccd, buffer);
+ 		}
+		VdHitWd(perro);
+		bigbuf.mensaje.saliente.cuerpo.respFoto.numMensaje = mensaje;
+#if MEDIDAS != 2  /* no envia por UDP cuando MEDIDAS == 2 */
+		udp_sendto(&sock,
+			(char*) &bigbuf.mensaje.saliente,
+			ccd->bytesUDP,
+			remitente->ip,
+			remitente->puerto);
+#endif
+	}
+
+	/*
+	 * Probablemente quede un grupo incompleto de 1 o mas filas
+	 * que hay que digitalizar y enviar tambien
+	 */
+
+	buffer = (int *)bigbuf.mensaje.saliente.cuerpo.respFoto.datos;
+	for(fila=0; fila < filas_restantes; fila++) {
+		buffer = ccd_fila(ccd, buffer);
+	}
+   VdHitWd(perro);
+
+	if(filas_restantes) {
+		bigbuf.mensaje.saliente.cuerpo.respFoto.numMensaje = mensaje;
+
+   /* BUG EN EL ACOR ???
+    * No parece lógico que en el ultimo paquete UDP se tengan que reportar
+    * mas filas de las que realmente se envian, pero en la version actual
+    * del ACOR me temo que asi es.
+
+    */
+
+   /* IMPORTANTE: COMENTO ESTA LINEA POR POSIBLE BUG DEL PROG ACOR DEL PC */
+      // bigbuf.mensaje.saliente.cuerpo.respFoto.numLineas =  filas_restantes;
+
+#if MEDIDAS != 2    /* no envia por UDP cuando MEDIDAS == 2 */
+		udp_sendto(&sock, (char*) &bigbuf.mensaje.saliente, ccd->bytesResto,
+			remitente->ip, remitente->puerto);
+#endif
+   }
+
+   /* tomar referencia de tiempo tFinal */
+
+   ccd->tFinal = MS_TIMER;
+
+	/*
+    * Ya que tenemos la zona activa de interés y el CCD se limpia
+    * concienzudamente al comienzo de cada exposición,
+    * NO hace falta saltar la zona del final
+	 */
+
+
+   VdReleaseWd(perro);
+
+   ccd_fin_foto(ccd);  /* Envia timestamps de fin de foto */
+
+   /*
+    * Trazas de depuracion para ver la repetibilidad del tiempo de exposicion
+    * y de lectura.
+    */
+
+
+   dbgprintf3("\nCLEARTIME=%ld, EXPTIME=%ld, READTIME=%ld\n", (ccd->tExp - ccd->tLimp), (ccd->tRead1 - ccd->tExp), (ccd->tFinal - ccd->tRead1));
+
+	diag_putchar(DIAG_FINLECT);
+}
+
+/*** BeginHeader  */
+#endif
+/*** EndHeader  */
+
+/******************************************************************************
+ *
+ * $Log: ccd.lib,v $
+ * Revision 1.16  2004/11/23 23:46:42  Astrorafael
+ * ahora si que esta quitada la rutina ensamblador de multiplicacion de 16x16
+ *
+ * Revision 1.15  2004/11/23 20:35:59  Astrorafael
+ * corregido bug corrupcion ultimas filas
+ * deltaX desaparece
+ * quitada rutina propia de 16x16=32bit. No hace falta.
+ *
+ * Revision 1.14  2004/11/23 01:01:42  Astrorafael
+ * Corregido bug de printf de un numero long.
+ * Corregido bug de compilador al multiplicar 16bit x 16bit = 32 bit.
+ * Se quitara la rutina de ensamblador cuando el compilador haga bien
+ * su trabajo.
+ *
+ * Revision 1.13  2004/11/14 11:59:47  Astrorafael
+ * quitado el bug de sumarle a clavo 10 columnas a x1 x2 en pruebas
+ *
+ * Revision 1.12  2004/11/13 10:29:15  Astrorafael
+ * actualizados comentarios
+ *
+ * Revision 1.11  2004/11/10 22:24:02  Astrorafael
+ * añadido el campo ccd->sobrantesX, para saltar mejor las columnas negras
+ * en los cuadros completos. Perfecto en 1x1, 2x2 y 4x4.
+ *
+ * Revision 1.10  2004/10/21 23:40:08  Astrorafael
+ * Añadido tratamiento de tomas BIAS
+ *
+ * Revision 1.9  2004/10/20 01:09:42  Astrorafael
+ * Reajuste de abrir/cerrar el obturador para obturadores sin patron de cerrado.
+ * Reajuste de los puntos de medición de la exposición.
+ * Nuevo mensaje de fin de foto del COR al PC
+ *
+ * Revision 1.8  2004/10/07 23:37:15  Astrorafael
+ * repasados los modos de obturador, ahora se espera siempre.
+ * Se ha dividido en dos la funcion para mostrar mas claramente
+ * lo que se hace al abrir y al cerrar.
+ *
+ * Revision 1.7  2004/10/03 18:39:48  Astrorafael
+ * agnadido dbgprintf1 de numFoto
+ *
+ * Revision 1.6  2004/10/03 11:33:07  Astrorafael
+ * Renombradas las macros de shutter.
+ * Corregido bug de shutter inactivo.
+ * Quitado código inutil de control de tiempo de exposición
+ * Quitado código inítil de saltar filas y columnas finales
+ *
+ * Revision 1.5  2004/09/29 00:08:06  Astrorafael
+ * Aumentado el numero de nops a 48 en ccd_V1V2 para adaptar la anchura del pulso V a 5 useg, valor nominal para el KAF-1603ME
+ *
+ * Revision 1.4  2004/09/28 01:05:22  Astrorafael
+ * modificada función ccd_v1v2(). Ahora es todo ensamblador.
+ * Demasiado rápida. Se han intorducido nops
+ *
+ * Revision 1.3  2004/09/26 09:46:48  Astrorafael
+ * Optimizados con djnz los bucles de ensamblador de lectura de pixel y lectura rápida de pixel
+ *
+ * Revision 1.2  2004/09/25 23:01:04  Astrorafael
+ * Quitados los dos and 0xFF de la rutina de digitalizar pixeles. No parece que hicieran falta.
+ *
+ * Revision 1.1.1.1  2004/09/22 22:44:20  Astrorafael
+ * Version inicial
+ *
+ *
+ ******************************************************************************/

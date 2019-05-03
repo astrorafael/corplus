@@ -1,0 +1,169 @@
+[Targetless Compile]
+Board ID=0x0700
+CPU ID=2000
+CPU Revision=3
+Crystal Speed MHz=11.0592
+RAM Size KBytes=512
+Flash Size KBytes=256
+Description=22MHz RCM2100, 512K SRAM, 512K Flash
+[COMM]
+port=1
+coldload baud=2400
+pilot baud=57600
+bios baud=115200
+Max Negotiated Baud=460800
+stop bits=0
+use TCP=0
+TCP Port=0
+Serial Response Timeout=200
+Ethernet Response Timeout=8000
+Serial Retry Count=10
+Ethernet Retry Count=0
+TCP Name=
+Net Address=
+Serial Poll Interval=3000
+Ethernet Poll Interval=30000
+Disable Baud Negotiation=1
+Verify DSR=1
+Use USB to Serial Converter=0
+USB to Serial Delay=2000
+Pilot Bios Physical Address=0x4000
+Flash erase timeout=10000
+Debug Tag RAM Offset=0x1002
+[Compiler Options]
+All Serious None=A
+RTC Indices=0
+RTC Pointers=0
+Optimize For Size=1
+Prototypes=1
+Demotion=1
+Pointers=1
+Default Compile Mode=1
+Separate Instruction and Data=0
+Generate List Files=1
+Inline Internal IO Functions=1
+Max Errors Shown=10
+Max Warnings Shown=10
+BIOS Memory Mode=0
+Restrict Watch Expressions=1
+[Dynamic C Files]
+Use Lib File=1
+Use BIOS File=0
+Use Default Source File=0
+LIB File=C:\user\corplus\LIB.DIR
+BIOS File=
+Default Source File=
+Cold Loader File=bios\coldload.bin
+Pilot BIOS File=bios\pilot.bin
+[Include BIOS]
+Include BIOS=1
+[MRU Files]
+FileCount=1
+[MRU 1]
+MRU 1 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\BOARDTYPES.LIB
+MRU 1 X=88
+MRU 1 Y=88
+MRU 1 W=826
+MRU 1 H=456
+MRU 1 Top Row=113
+MRU 1 WindowState=2
+MRU 1 Cursor Row=113
+MRU 1 Cursor Col=87
+[OpenFile 1]
+OpenFile 1=C:\USER\CORPLUS\CCD.LIB
+OpenFile 1 X=66
+OpenFile 1 Y=66
+OpenFile 1 W=822
+OpenFile 1 H=452
+OpenFile 1 Top Row=199
+OpenFile 1 Top Col=0
+OpenFile 1 WindowState=2
+OpenFile 1 Cursor Row=400
+OpenFile 1 Cursor Col=81
+[Open Files]
+Number Open=2
+[Include RST 28]
+Include RST=0
+[Debug Options]
+Enable Breakpoints=0
+Enable Instruction Level Single Step=0
+Enable Watch Expressions=0
+Max Breakpoints=32
+Max Watch Expressions=8
+[Poll Target]
+Poll target while running=1
+[Compression Utility]
+Zimport External Utility=ZCOMPRESS.EXE
+[DEFINES]
+Defines=DEBUG=1
+[MRU 2]
+MRU 2 Path=C:\CORPLUS\CCD.LIB
+MRU 2 X=0
+MRU 2 Y=0
+MRU 2 W=826
+MRU 2 H=456
+MRU 2 Top Row=840
+MRU 2 WindowState=2
+MRU 2 Cursor Row=859
+MRU 2 Cursor Col=58
+[MRU 3]
+MRU 3 Path=C:\CORPLUS\TIPOS.LIB
+MRU 3 X=66
+MRU 3 Y=66
+MRU 3 W=826
+MRU 3 H=456
+MRU 3 Top Row=39
+MRU 3 WindowState=2
+MRU 3 Cursor Row=52
+MRU 3 Cursor Col=29
+[MRU 4]
+MRU 4 Path=C:\CORPLUS\CUSTOM_CONFIG.LIB
+MRU 4 X=110
+MRU 4 Y=110
+MRU 4 W=826
+MRU 4 H=456
+MRU 4 Top Row=24
+MRU 4 WindowState=2
+MRU 4 Cursor Row=57
+MRU 4 Cursor Col=0
+[MRU 5]
+MRU 5 Path=C:\CORPLUS\PRINCIPAL.MAP
+MRU 5 X=88
+MRU 5 Y=88
+MRU 5 W=822
+MRU 5 H=436
+MRU 5 Top Row=2052
+MRU 5 WindowState=2
+MRU 5 Cursor Row=2088
+MRU 5 Cursor Col=12
+[MRU 6]
+MRU 6 Path=C:\COR\COR2C ORIGINAL\COR2C.C
+MRU 6 X=154
+MRU 6 Y=154
+MRU 6 W=822
+MRU 6 H=452
+MRU 6 Top Row=0
+MRU 6 WindowState=2
+MRU 6 Cursor Row=4
+MRU 6 Cursor Col=78
+[MRU 7]
+MRU 7 Path=C:\ARCHIVOS DE PROGRAMA\DCRABBIT_8.01\LIB\BOARDTYPES.LIB
+MRU 7 X=88
+MRU 7 Y=88
+MRU 7 W=826
+MRU 7 H=456
+MRU 7 Top Row=113
+MRU 7 WindowState=2
+MRU 7 Cursor Row=113
+MRU 7 Cursor Col=87
+[OpenFile 2]
+OpenFile 2=C:\USER\CORPLUS\PRINCIPAL.C
+OpenFile 2 X=44
+OpenFile 2 Y=44
+OpenFile 2 W=822
+OpenFile 2 H=452
+OpenFile 2 Top Row=0
+OpenFile 2 Top Col=0
+OpenFile 2 WindowState=0
+OpenFile 2 Cursor Row=0
+OpenFile 2 Cursor Col=0

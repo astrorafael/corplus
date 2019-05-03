@@ -1,0 +1,28 @@
+$Name: corplus-1v5 $
+$Header: c:\\Repositorio/corplus/compilar.txt,v 1.2 2004/10/07 23:37:37 Astrorafael Exp $
+
+
+El fichero a compilar es Principal.c
+
+DESARROLLO
+===========
+
+Para compilar en modo desarrollo, 
+abrir el proyecto desarrollo.dcp.
+File > Project > Open ...  [c:\user\corplus\desarrollo.dcp]
+
+Para evitar grabar a flash muchas veces:
+Compile > Compile to Target > Compile to RAM
+
+
+GENERACION FINAL
+================
+
+Para generar el binario final lo mas limpio y compacto posible, 
+utilizar el proyecto rcm2110.dcp
+File > Project > Open ...  [c:\user\corplus\rcm2110.dcp]
+
+Compilar con
+Compile > Compile to .bin File > Compile to Flash
+
+
